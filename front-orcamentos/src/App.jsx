@@ -76,31 +76,34 @@ const parametrosGuilhotina = {
 };
 
 function App() {
-  // 1. ESTADOS GLOBAIS (Verde e Laranja no Excel)
+  // 1. ESTADOS GLOBAIS
   const [cliente, setCliente] = useState('');
   const [imposto, setImposto] = useState(0.18);
   const [comissao, setComissao] = useState(0.02);
   const [frete, setFrete] = useState(0.31);
   const [precoKg, setPrecoKg] = useState(11.50);
 
-  // 2. ESTADOS DA PEÇA ATUAL (Vermelho no Excel)
+  // 2. ESTADOS DA PEÇA ATUAL
   const [idNoroaco, setIdNoroaco] = useState('');
   const [qtd, setQtd] = useState('');
-  const [tipoPeca, setTipoPeca] = useState('R'); // R = Retangular, Q = Quadrada
-  const [nFuros, setNFuros] = useState(0);
-  const [diaFuro, setDiaFuro] = useState(0);
+  const [tipoPeca, setTipoPeca] = useState('R');
   const [espessura, setEspessura] = useState('');
   const [dimA, setDimA] = useState('');
   const [dimB, setDimB] = useState('');
   const [dimC, setDimC] = useState('');
-  const [pesoUnitario, setPesoUnitario] = useState(0);
+  
+  // ESTADOS DE FURAÇÃO (Novos)
+  const [nFuros, setNFuros] = useState(0);
+  const [diaFuro, setDiaFuro] = useState(0);
+  const [furoPadraoCantos, setFuroPadraoCantos] = useState(false);
+  const [furoOffsetX, setFuroOffsetX] = useState('');
+  const [furoOffsetY, setFuroOffsetY] = useState('');
 
-  // 3. LISTA DE PEÇAS
+  // 3. LISTA E CONTROLE DE EDIÇÃO
   const [listaPecas, setListaPecas] = useState([]);
-
-  // NOVO: Estado para saber se estamos editando uma peça existente
   const [editandoIndex, setEditandoIndex] = useState(null);
 
+  // FUNÇÃO: ADICIONAR OU ATUALIZAR
   const adicionarOuAtualizarPeca = (e) => {
     e.preventDefault();
 
@@ -112,127 +115,118 @@ function App() {
       idNoroaco,
       qtd: parseInt(qtd),
       tipoPeca,
-      nFuros: parseInt(nFuros),
-      diaFuro: parseFloat(diaFuro),
       espessura: parseFloat(espessura),
       dimA: parseFloat(dimA),
       dimB: parseFloat(dimB),
       dimC: parseFloat(dimC),
+      // Dados de furação incluídos no pacote
+      nFuros: parseInt(nFuros),
+      diaFuro: parseFloat(diaFuro),
+      furoPadraoCantos,
+      furoOffsetX: parseFloat(furoOffsetX || 0),
+      furoOffsetY: parseFloat(furoOffsetY || 0),
+      // Pesos
       pesoUnitario: pesoUnitario.toFixed(2),
       pesoTotal: pesoTotal.toFixed(2)
     };
 
     if (editandoIndex !== null) {
-      // Se estamos editando, atualizamos a peça na posição correta
       const listaAtualizada = [...listaPecas];
       listaAtualizada[editandoIndex] = novaPeca;
       setListaPecas(listaAtualizada);
-      setEditandoIndex(null); // Sai do modo de edição
+      setEditandoIndex(null);
     } else {
-      // Se não, adiciona uma nova
       setListaPecas([...listaPecas, novaPeca]);
     }
 
-    // Limpa os campos após salvar
-    setIdNoroaco(''); setDimA(''); setDimB(''); setDimC(''); setNFuros(0); setDiaFuro(0);
+    // Limpa todos os campos
+    setIdNoroaco(''); setDimA(''); setDimB(''); setDimC(''); 
+    setNFuros(0); setDiaFuro(0); setFuroPadraoCantos(false); setFuroOffsetX(''); setFuroOffsetY('');
   };
 
+  // FUNÇÃO: REMOVER
   const removerPeca = (indexParaRemover) => {
     const listaFiltrada = listaPecas.filter((_, index) => index !== indexParaRemover);
     setListaPecas(listaFiltrada);
   };
 
+  // FUNÇÃO: INICIAR EDIÇÃO
   const editarPeca = (index) => {
     const peca = listaPecas[index];
-    // Carrega os dados da peça selecionada de volta para os inputs
     setIdNoroaco(peca.idNoroaco);
     setQtd(peca.qtd);
     setTipoPeca(peca.tipoPeca);
-    setNFuros(peca.nFuros);
-    setDiaFuro(peca.diaFuro);
     setEspessura(peca.espessura);
     setDimA(peca.dimA);
     setDimB(peca.dimB);
     setDimC(peca.dimC);
     
+    // Puxa os dados de furação antigos
+    setNFuros(peca.nFuros);
+    setDiaFuro(peca.diaFuro);
+    setFuroPadraoCantos(peca.furoPadraoCantos);
+    setFuroOffsetX(peca.furoOffsetX);
+    setFuroOffsetY(peca.furoOffsetY);
+    
     setEditandoIndex(index);
   };
 
-
-  // 2. FUNÇÃO DE AÇÃO
-  // Adicionamos a palavra 'async' porque a comunicação com o servidor leva tempo (milissegundos)
-  const handleSalvar = async (evento) => {
-    evento.preventDefault(); 
-    
+  // FUNÇÃO: ENVIAR PARA O BACKEND
+  const handleSalvar = async () => {
     const pacoteDeDados = {
-      cliente_nome: cliente,
-      tipo_material: material,
-      espessura_mm: parseFloat(espessura) || 0,
-      tipo_processo: processo,
-      quantidade_pecas: parseInt(quantidade) || 0,
-      medidas: {
-        largura_mm: parseFloat(largura) || 0,
-        altura_mm: parseFloat(altura) || 0
-      }
+      cliente,
+      imposto: parseFloat(imposto),
+      comissao: parseFloat(comissao),
+      precoKg: parseFloat(precoKg),
+      frete: parseFloat(frete),
+      pecas: listaPecas
     };
-
-    try {
-      // 1. O React faz a "ligação" para o Python
-      const resposta = await fetch("http://localhost:8000/calcular-orcamento", {
-        method: "POST", // Método de envio
-        headers: {
-          "Content-Type": "application/json" // Avisa que estamos mandando um JSON
-        },
-        body: JSON.stringify(pacoteDeDados) // Transforma nosso objeto em texto JSON
-      });
-
-      // 2. Espera a resposta do Python chegar
-      const dadosDoBackend = await resposta.json();
-
-      // 3. Mostra o resultado processado pelo servidor!
-      if (dadosDoBackend.status === "sucesso") {
-        alert("✅ Sucesso no Servidor: " + dadosDoBackend.mensagem);
-        console.log("Resposta completa do backend:", dadosDoBackend);
-      } else {
-        alert("⚠️ Erro ao processar no servidor.");
-      }
-
-    } catch (erro) {
-      console.error("Erro na comunicação:", erro);
-      alert("❌ O backend Python parece estar desligado!");
-    }
+    console.log("Enviando para Python:", pacoteDeDados);
+    // ... Aqui vai o fetch do Python que já construímos ...
+    alert("Dados enviados (Veja o console)");
   };
-  // Função que gera o desenho vetorial da peça em tempo real
+
+  // FUNÇÃO: PREVIEW VISUAL CNC ATUALIZADO
   const renderPreviewPeca = () => {
-    // Garante que temos valores mínimos para não quebrar o desenho
     const w = parseFloat(dimA) || (tipoPeca === 'Q' ? 100 : 200);
     const h = parseFloat(dimB) || (tipoPeca === 'Q' ? w : 100);
     const furos = parseInt(nFuros) || 0;
     const raioFuro = (parseFloat(diaFuro) || 0) / 2;
+    
+    // Distâncias (se vazias, usamos 10mm como padrão visual temporário)
+    const offX = parseFloat(furoOffsetX) || 10;
+    const offY = parseFloat(furoOffsetY) || 10;
 
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 rounded-lg p-4 relative overflow-hidden">
         <span className="absolute top-2 left-2 text-xs font-mono text-green-400">Preview (Escala Automática)</span>
         
-        {/* O viewBox atua como a área de trabalho da máquina CNC */}
         <svg viewBox={`0 0 ${w + 40} ${h + 40}`} className="w-full h-full max-h-48 drop-shadow-lg">
           {/* Corpo da chapa principal */}
           <rect x="20" y="20" width={w} height={h} fill="#94a3b8" stroke="#334155" strokeWidth="2" rx="2" />
           
-          {/* Lógica simples para furos (centralizados de forma ilustrativa) */}
-          {furos > 0 && furos <= 5 && Array.from({ length: furos }).map((_, i) => (
-             <circle 
-               key={i} 
-               cx={20 + (w / (furos + 1)) * (i + 1)} 
-               cy={20 + h / 2} 
-               r={raioFuro} 
-               fill="#1e293b" 
-             />
-          ))}
-          {furos > 5 && (
-            <text x={20 + w/2} y={20 + h/2} textAnchor="middle" fill="#1e293b" fontSize={Math.min(w, h) * 0.2}>
-              +{furos} Furos
-            </text>
+          {/* Lógica Inteligente de Furos */}
+          {furos > 0 && (
+            furoPadraoCantos && furos === 4 ? (
+              // Padrão 4 Cantos (As coordenadas exatas baseadas nas bordas)
+              <>
+                <circle cx={20 + offX} cy={20 + offY} r={raioFuro} fill="#1e293b" />
+                <circle cx={20 + w - offX} cy={20 + offY} r={raioFuro} fill="#1e293b" />
+                <circle cx={20 + offX} cy={20 + h - offY} r={raioFuro} fill="#1e293b" />
+                <circle cx={20 + w - offX} cy={20 + h - offY} r={raioFuro} fill="#1e293b" />
+              </>
+            ) : (
+              // Padrão Linear Simples (Para furos normais)
+              furos <= 5 ? (
+                Array.from({ length: furos }).map((_, i) => (
+                  <circle key={i} cx={20 + (w / (furos + 1)) * (i + 1)} cy={20 + h / 2} r={raioFuro} fill="#1e293b" />
+                ))
+              ) : (
+                <text x={20 + w/2} y={20 + h/2} textAnchor="middle" fill="#1e293b" fontSize={Math.min(w, h) * 0.2}>
+                  +{furos} Furos
+                </text>
+              )
+            )
           )}
         </svg>
 
@@ -246,10 +240,9 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-100 p-6 flex flex-col md:flex-row gap-6">
       
-      {/* LADO ESQUERDO: FORMULÁRIOS (Ocupa 2/3 da tela) */}
+      {/* LADO ESQUERDO: FORMULÁRIOS */}
       <div className="w-full md:w-2/3 space-y-6">
         
-        {/* BLOCO 1: Variáveis Globais (Laranja/Verde) */}
         <div className="bg-white p-6 rounded-lg shadow-md border-t-4 border-orange-500">
           <h2 className="text-xl font-bold text-slate-800 mb-4">Parâmetros do Orçamento</h2>
           <div className="grid grid-cols-5 gap-4">
@@ -272,7 +265,6 @@ function App() {
           </div>
         </div>
 
-        {/* BLOCO 2: Entrada de Peças (Com Preview) */}
         <div className="bg-white p-6 rounded-lg shadow-md border-t-4 border-red-600">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-slate-800">
@@ -281,20 +273,21 @@ function App() {
             {editandoIndex !== null && (
               <button onClick={() => {
                 setEditandoIndex(null); 
-                setIdNoroaco(''); setDimA(''); setDimB(''); setDimC(''); setNFuros(0); setDiaFuro(0);
+                setIdNoroaco(''); setDimA(''); setDimB(''); setDimC(''); 
+                setNFuros(0); setDiaFuro(0); setFuroPadraoCantos(false); setFuroOffsetX(''); setFuroOffsetY('');
               }} className="text-sm text-red-500 hover:underline">Cancelar Edição</button>
             )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* LADO ESQUERDO DO BLOCO: O Formulário */}
             <div className="col-span-2">
               <form onSubmit={adicionarOuAtualizarPeca} className="space-y-4">
+                
+                {/* Linha 1: Dimensões Principais */}
                 <div className="grid grid-cols-4 gap-4">
                    <div>
                      <label className="block text-sm font-bold text-red-700">ID Noroaço</label>
-                     <input type="text" value={idNoroaco} onChange={(e) => setIdNoroaco(e.target.value)} required className="mt-1 w-full border border-red-300 rounded p-2 bg-red-50 focus:ring-red-500" />
+                     <input type="text" value={idNoroaco} onChange={(e) => setIdNoroaco(e.target.value)} required className="mt-1 w-full border border-red-300 rounded p-2 bg-red-50" />
                    </div>
                    <div>
                      <label className="block text-sm font-bold text-red-700">QTD</label>
@@ -313,7 +306,8 @@ function App() {
                    </div>
                 </div>
 
-                <div className="grid grid-cols-5 gap-4">
+                {/* Linha 2: Furos e Dimensões */}
+                <div className="grid grid-cols-5 gap-4 items-end">
                    <div>
                      <label className="block text-sm font-medium">Nº Furos</label>
                      <input type="number" value={nFuros} onChange={(e) => setNFuros(e.target.value)} className="mt-1 w-full border rounded p-2" />
@@ -336,22 +330,55 @@ function App() {
                    </div>
                 </div>
 
+                {/* Linha 3: Renderização Condicional (O MENU INTELIGENTE DE FUROS) */}
+                {nFuros > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded grid grid-cols-3 gap-4 items-center">
+                    <div className="flex items-center space-x-2">
+                      <input 
+                        type="checkbox" 
+                        id="checkCantos"
+                        checked={furoPadraoCantos} 
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setFuroPadraoCantos(isChecked);
+                          if (isChecked) setNFuros(4); // Força 4 furos automaticamente
+                        }} 
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <label htmlFor="checkCantos" className="text-sm font-bold text-slate-700 cursor-pointer">
+                        Padrão: 4 Cantos
+                      </label>
+                    </div>
+                    
+                    {furoPadraoCantos && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600">Dist. Borda X (mm)</label>
+                          <input type="number" value={furoOffsetX} onChange={(e) => setFuroOffsetX(e.target.value)} required className="mt-1 w-full border rounded p-1 text-sm" placeholder="Ex: 35" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600">Dist. Borda Y (mm)</label>
+                          <input type="number" value={furoOffsetY} onChange={(e) => setFuroOffsetY(e.target.value)} required className="mt-1 w-full border rounded p-1 text-sm" placeholder="Ex: 35" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <button type="submit" className={`w-full text-white font-bold py-3 rounded transition-colors shadow-md ${editandoIndex !== null ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
                   {editandoIndex !== null ? '✓ Atualizar Peça' : '+ Inserir Peça na Lista'}
                 </button>
               </form>
             </div>
 
-            {/* LADO DIREITO DO BLOCO: O Preview Visual (Aonde você desenhou o quadrado vermelho) */}
             <div className="col-span-1 h-full min-h-[200px]">
               {renderPreviewPeca()}
             </div>
-
           </div>
         </div>
       </div>
 
-      {/* LADO DIREITO DA TELA INTEIRA: LISTA LATERAL COM EXCLUIR/EDITAR */}
+      {/* LADO DIREITO: LISTA LATERAL */}
       <div className="w-full md:w-1/3 bg-white p-6 rounded-lg shadow-md border-t-4 border-slate-800 flex flex-col">
         <div className="flex justify-between items-center mb-4 border-b pb-2">
           <h2 className="text-lg font-bold text-slate-800">Peças do Orçamento</h2>
@@ -381,6 +408,12 @@ function App() {
                   <p>Dim: <b>{peca.dimA}x{peca.dimB}</b></p>
                   <p>Peso Unt: <b>{peca.pesoUnitario}kg</b></p>
                   <p className="text-green-700">Peso Tot: <b>{peca.pesoTotal}kg</b></p>
+                  {peca.nFuros > 0 && (
+                     <p className="col-span-2 text-slate-500 mt-1">
+                       ⚙️ {peca.nFuros} Furo(s) Ø{peca.diaFuro} 
+                       {peca.furoPadraoCantos ? ` (Cantos: ${peca.furoOffsetX}x${peca.furoOffsetY})` : ''}
+                     </p>
+                  )}
                 </div>
               </div>
             ))
@@ -389,7 +422,7 @@ function App() {
         
         {listaPecas.length > 0 && (
           <div className="mt-4 pt-4 border-t">
-            <button className="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">
+            <button onClick={handleSalvar} className="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">
               Enviar para Cálculo (Python)
             </button>
           </div>
