@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 import uvicorn
@@ -7,6 +8,84 @@ from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+
+PARAMETROS_LASER = {
+    "0.90": {"velTeorica": 26000, "velPratica": 22100},
+    "0.95": {"velTeorica": 26000, "velPratica": 22100},
+    "1.20": {"velTeorica": 25000, "velPratica": 21250},
+    "1.25": {"velTeorica": 25000, "velPratica": 21250},
+    "1.50": {"velTeorica": 25000, "velPratica": 21250},
+    "1.55": {"velTeorica": 25000, "velPratica": 21250},
+    "1.80": {"velTeorica": 25000, "velPratica": 21250},
+    "1.95": {"velTeorica": 25000, "velPratica": 21250},
+    "2.00": {"velTeorica": 25000, "velPratica": 21250},
+    "2.25": {"velTeorica": 20000, "velPratica": 17000},
+    "2.65": {"velTeorica": 20000, "velPratica": 17000, "amperagem": 45},
+    "3.00": {"velTeorica": 15000, "velPratica": 12750, "amperagem": 65},
+    "3.35": {"velTeorica": 15000, "velPratica": 12750},
+    "3.75": {"velTeorica": 11000, "velPratica": 9350},
+    "4.25": {"velTeorica": 11000, "velPratica": 9350},
+    "4.75": {"velTeorica": 8500,  "velPratica": 7225},
+    "6.35": {"velTeorica": 2400,  "velPratica": 2040, "amperagem": 105},
+    "7.94": {"velTeorica": 2200,  "velPratica": 1870},
+    "9.53": {"velTeorica": 1900,  "velPratica": 1615},
+    "12.70": {"velTeorica": 1500, "velPratica": 1275, "amperagem": 125},
+    "15.88": {"velTeorica": 1200, "velPratica": 1020}
+}
+
+PARAMETROS_PLASMA = {
+    "0.65": {"velTeorica": 5200, "velPratica": 4420},
+    "0.90": {"velTeorica": 5200, "velPratica": 4420},
+    "0.95": {"velTeorica": 5200, "velPratica": 4420},
+    "1.20": {"velTeorica": 5200, "velPratica": 4420},
+    "1.25": {"velTeorica": 5200, "velPratica": 4420},
+    "1.50": {"velTeorica": 5200, "velPratica": 4420},
+    "1.90": {"velTeorica": 5200, "velPratica": 4420},
+    "2.00": {"velTeorica": 5200, "velPratica": 4420},
+    "2.15": {"velTeorica": 5200, "velPratica": 4420},
+    "2.25": {"velTeorica": 5200, "velPratica": 4420},
+    "2.65": {"velTeorica": 5200, "velPratica": 4420, "amperagem": 45},
+    "3.00": {"velTeorica": 5150, "velPratica": 4378, "amperagem": 65},
+    "3.15": {"velTeorica": 3600, "velPratica": 3060},
+    "3.35": {"velTeorica": 3600, "velPratica": 3485},
+    "3.75": {"velTeorica": 3600, "velPratica": 3060},
+    "3.85": {"velTeorica": 3600, "velPratica": 3485},
+    "4.25": {"velTeorica": 3600, "velPratica": 3485},
+    "4.75": {"velTeorica": 3600, "velPratica": 3485},
+    "6.35": {"velTeorica": 4100, "velPratica": 3060, "amperagem": 105},
+    "7.94": {"velTeorica": 3200, "velPratica": 2720},
+    "9.53": {"velTeorica": 2200, "velPratica": 1870, "velocidade_furo": 700},
+    "12.70": {"velTeorica": 2050, "velPratica": 1743, "amperagem": 125},
+    "15.88": {"velTeorica": 1250, "velPratica": 1063},
+    "19.04": {"velTeorica": 900, "velPratica": 765},
+    "22.22": {"velTeorica": 750, "velPratica": 638, "velocidade_furo": 450},
+    "25.40": {"velTeorica": 600, "velPratica": 510, "velocidade_furo": 400},
+    "28.70": {"velTeorica": 600, "velPratica": 510},
+    "31.75": {"velTeorica": 500, "velPratica": 425},
+}
+
+PARAMETROS_OXICORTE = {
+    "25.40": {"velTeorica": 300, "velPratica": 255},
+    "28.70": {"velTeorica": 300, "velPratica": 255},
+    "31.75": {"velTeorica": 200, "velPratica": 170},
+    "50.80": {"velTeorica": 190, "velPratica": 162},
+}
+
+PARAMETROS_GUILHOTINA = {
+    "0.90": {"velTeorica": 36000, "velPratica": 30600},
+    "1.50": {"velTeorica": 36000, "velPratica": 30600},
+    "1.90": {"velTeorica": 36000, "velPratica": 30600},
+    "2.00": {"velTeorica": 36000, "velPratica": 30600},
+    "2.25": {"velTeorica": 36000, "velPratica": 30600},
+    "2.65": {"velTeorica": 36000, "velPratica": 30600},
+    "3.00": {"velTeorica": 36000, "velPratica": 30600},
+    "3.35": {"velTeorica": 36000, "velPratica": 30600},
+    "3.75": {"velTeorica": 36000, "velPratica": 30600},
+    "4.25": {"velTeorica": 36000, "velPratica": 30600},
+    "4.75": {"velTeorica": 36000, "velPratica": 30600},
+    "6.35": {"velTeorica": 36000, "velPratica": 30600},
+    "7.94": {"velTeorica": 36000, "velPratica": 30600},
+},
 
 app = FastAPI(title="API Lypsyos - Motor de Orçamentos")
 
@@ -42,27 +121,98 @@ class OrcamentoPayload(BaseModel):
     comissao: float
     precoKg: float
     frete: float
+    processo: str # "EX: "LASER" ou "PLASMA"
     pecas: List[Peca] # Aqui dizemos que "pecas" é uma lista contendo o modelo Peca acima
-
-@app.get("/")
-def ler_raiz():
-    return {"status": "Motor Backend da Lypsyos rodando perfeitamente!"}
 
 @app.post("/calcular-orcamento")
 def calcular_orcamento(dados: OrcamentoPayload):
-    # O FastAPI já validou tudo pra você. Se chegou aqui, os dados estão corretos.
+    total_pecas_global = 0
+    peso_total_global = 0.0
+    tempo_total_global_min = 0.0
+    custo_total_global = 0.0
+
+    # Dicionário ativo baseado no processo escolhido (Laser como padrão)
+    tabela_ativa = PARAMETROS_LASER if dados.processo == "LASER" else PARAMETROS_LASER 
     
-    total_pecas = sum(peca.qtd for peca in dados.pecas)
-    peso_total_orcamento = sum(peca.pesoTotal for peca in dados.pecas)
-    
-    # Aqui entrará a lógica bruta: calcular perímetro, tempo de piercing, custo de máquina, etc.
-    
-    mensagem = f"Orçamento recebido! Cliente: {dados.cliente}. Total de {total_pecas} peças analisadas. Peso Total: {peso_total_orcamento:.2f} Kg."
-    
+    # Parâmetros de Chapa Padrão (3000x1500)
+    AREA_CHAPA_PADRAO_MM2 = 3000 * 1500
+    EFICIENCIA_NESTING = 0.70 # 70% de aproveitamento de chapa
+
+    # 1. Objeto para agrupar dados por espessura
+    resumo_espessuras = {}
+
+    for peca in dados.pecas:
+        espessura_str = f"{peca.espessura:.2f}"
+        
+        # Cria a "gaveta" da espessura se ela não existir
+        if espessura_str not in resumo_espessuras:
+            resumo_espessuras[espessura_str] = {
+                "espessura": peca.espessura,
+                "qtd_pecas": 0,
+                "peso_kg": 0.0,
+                "tempo_min": 0.0,
+                "area_total_mm2": 0.0,
+                "custo_material": 0.0
+            }
+
+        # --- MATEMÁTICA DA MÁQUINA ---
+        parametros_maquina = tabela_ativa.get(espessura_str, {}) 
+        veloc_base_mm_min = parametros_maquina.get("velPratica", 5000.0) 
+        veloc_furo_mm_min = veloc_base_mm_min * 0.20
+
+        perimetro_externo_mm = (peca.dimA + peca.dimB) * 2
+        perimetro_furos_mm = peca.nFuros * (math.pi * peca.diaFuro)
+
+        tempo_corte_externo_min = perimetro_externo_mm / veloc_base_mm_min
+        tempo_corte_furos_min = (perimetro_furos_mm / veloc_furo_mm_min) if veloc_furo_mm_min > 0 else 0
+
+        tempo_entrada_por_furo_min = 0.03 * peca.nFuros
+        movimento_em_vazio_min = 0.02 * (peca.nFuros + 1)
+        fator_dinamico = 1.15 
+
+        tempo_real_unidade = (tempo_corte_externo_min + tempo_corte_furos_min + tempo_entrada_por_furo_min + movimento_em_vazio_min) * fator_dinamico
+        
+        tempo_total_peca = tempo_real_unidade * peca.qtd
+        area_total_peca = (peca.dimA * peca.dimB) * peca.qtd
+        custo_material_peca = peca.pesoTotal * dados.precoKg
+
+        # 2. Somando nos Totais da Espessura Específica
+        resumo_espessuras[espessura_str]["qtd_pecas"] += peca.qtd
+        resumo_espessuras[espessura_str]["peso_kg"] += peca.pesoTotal
+        resumo_espessuras[espessura_str]["tempo_min"] += tempo_total_peca
+        resumo_espessuras[espessura_str]["area_total_mm2"] += area_total_peca
+        resumo_espessuras[espessura_str]["custo_material"] += custo_material_peca
+
+        # 3. Somando nos Totais Globais
+        total_pecas_global += peca.qtd
+        peso_total_global += peca.pesoTotal
+        tempo_total_global_min += tempo_total_peca
+        custo_total_global += custo_material_peca
+
+    # 4. Cálculo final de Chapas por Espessura e Formatação
+    detalhamento_lista = []
+    chapas_total_global = 0
+
+    for esp_str, dados_esp in resumo_espessuras.items():
+        # Calcula quantas chapas são necessárias com base na área e na eficiência
+        area_com_perda = dados_esp["area_total_mm2"] / EFICIENCIA_NESTING
+        # math.ceil arredonda para cima, pois não compramos "meia chapa" na prática
+        chapas_necessarias = max(1, math.ceil(area_com_perda / AREA_CHAPA_PADRAO_MM2)) 
+        
+        dados_esp["chapas_necessarias"] = chapas_necessarias
+        chapas_total_global += chapas_necessarias
+        detalhamento_lista.append(dados_esp)
+
     return {
         "status": "sucesso",
-        "mensagem": mensagem,
-        "dados_validados": dados # Devolvemos os dados para confirmar o recebimento
+        "totais_globais": {
+            "total_pecas": total_pecas_global,
+            "peso_total_kg": round(peso_total_global, 2),
+            "tempo_total_min": round(tempo_total_global_min, 2),
+            "custo_total": round(custo_total_global, 2),
+            "chapas_totais": chapas_total_global
+        },
+        "detalhamento_espessuras": detalhamento_lista
     }
 
 

@@ -1,80 +1,5 @@
 import { useState } from 'react';
 
-// Constantes de parâmetros (Laser, Plasma, Oxicorte, Guilhotina)
-const parametrosLaser = {
-  "0.90": { velTeorica: 26000, velPratica: 22100 },
-  "0.95": { velTeorica: 26000, velPratica: 22100 },
-  "1.20": { velTeorica: 25000, velPratica: 21250 },
-  "1.25": { velTeorica: 25000, velPratica: 21250 },
-  "1.50": { velTeorica: 25000, velPratica: 21250 },
-  "1.55": { velTeorica: 25000, velPratica: 21250 },
-  "1.80": { velTeorica: 25000, velPratica: 21250 },
-  "1.95": { velTeorica: 25000, velPratica: 21250 },
-  "2.00": { velTeorica: 25000, velPratica: 21250 },
-  "2.25": { velTeorica: 20000, velPratica: 17000 },
-  "2.65": { velTeorica: 20000, velPratica: 17000, amperagem: 45 },
-  "3.00": { velTeorica: 15000, velPratica: 12750, amperagem: 65 },
-  "3.35": { velTeorica: 15000, velPratica: 12750 },
-  "3.75": { velTeorica: 11000, velPratica: 9350 },
-  "4.25": { velTeorica: 11000, velPratica: 9350 },
-  "4.75": { velTeorica: 8500, velPratica: 7225 },
-  "6.35": { velTeorica: 2400, velPratica: 2040, amperagem: 105 },
-  "7.94": { velTeorica: 2200, velPratica: 1870 },
-  "9.53": { velTeorica: 1900, velPratica: 1615, velocidadeFuro: 700 },
-  "12.70": { velTeorica: 1500, velPratica: 1275, amperagem: 125 },
-  "15.88": { velTeorica: 1200, velPratica: 1020 }
-};
-const parametrosPlasma = {
-  "0.65": { velTeorica: 5200, velPratica: 4420 },
-  "0.90": { velTeorica: 5200, velPratica: 4420 },
-  "0.95": { velTeorica: 5200, velPratica: 4420 },
-  "1.20": { velTeorica: 5200, velPratica: 4420 },
-  "1.25": { velTeorica: 5200, velPratica: 4420 },
-  "1.50": { velTeorica: 5200, velPratica: 4420 },
-  "1.90": { velTeorica: 5200, velPratica: 4420 },
-  "2.00": { velTeorica: 5200, velPratica: 4420 },
-  "2.15": { velTeorica: 5200, velPratica: 4420 },
-  "2.25": { velTeorica: 5200, velPratica: 4420 },
-  "2.65": { velTeorica: 5200, velPratica: 4420, amperagem: 45 },
-  "3.00": { velTeorica: 5150, velPratica: 4378, amperagem: 65 },
-  "3.15": { velTeorica: 3600, velPratica: 3060 },
-  "3.35": { velTeorica: 3600, velPratica: 3485 },
-  "3.75": { velTeorica: 3600, velPratica: 3060 },
-  "3.85": { velTeorica: 3600, velPratica: 3485 },
-  "4.25": { velTeorica: 3600, velPratica: 3485 },
-  "4.75": { velTeorica: 3600, velPratica: 3485 },
-  "6.35": { velTeorica: 4100, velPratica: 3060, amperagem: 105 },
-  "7.94": { velTeorica: 3200, velPratica: 2720 },
-  "9.53": { velTeorica: 2200, velPratica: 1870, velocidadeFuro: 700 },
-  "12.70": { velTeorica: 2050, velPratica: 1743, amperagem: 125 },
-  "15.88": { velTeorica: 1250, velPratica: 1063 },
-  "19.04": { velTeorica: 900, velPratica: 765 },
-  "22.22": { velTeorica: 750, velPratica: 638, velocidadeFuro: 450 },
-  "25.40": { velTeorica: 600, velPratica: 510, velocidadeFuro: 400 },
-  "28.70": { velTeorica: 600, velPratica: 510 },
-  "31.75": { velTeorica: 500, velPratica: 425 }
-};
-const parametrosOxicorte = {
-  "25.40": { velTeorica: 300, velPratica: 255 },
-  "28.70": { velTeorica: 300, velPratica: 255 },
-  "31.75": { velTeorica: 200, velPratica: 170 },
-  "50.80": { velTeorica: 190, velPratica: 162 }
-};
-const parametrosGuilhotina = {
-  "0.90": { velocidade: 36000, velocidadePratica: 30600 },
-  "1.50": { velocidade: 36000, velocidadePratica: 30600 },
-  "1.90": { velocidade: 36000, velocidadePratica: 30600 },
-  "2.00": { velocidade: 36000, velocidadePratica: 30600 },
-  "2.25": { velocidade: 36000, velocidadePratica: 30600 },
-  "2.65": { velocidade: 36000, velocidadePratica: 30600 },
-  "3.00": { velocidade: 36000, velocidadePratica: 30600 },
-  "3.35": { velocidade: 36000, velocidadePratica: 30600 },
-  "3.75": { velocidade: 36000, velocidadePratica: 30600 },
-  "4.25": { velocidade: 36000, velocidadePratica: 30600 },
-  "4.75": { velocidade: 36000, velocidadePratica: 30600 },
-  "6.35": { velocidade: 36000, velocidadePratica: 30600 },
-  "7.94": { velocidade: 36000, velocidadePratica: 30600 }
-};
 
 function App() {
   // 1. ESTADOS GLOBAIS
@@ -86,6 +11,7 @@ function App() {
 
   // 2. ESTADOS DA PEÇA ATUAL
   const [id, setId] = useState('');
+  const [processo, setProcesso] = useState('LASER');
   const [qtd, setQtd] = useState('');
   const [tipoPeca, setTipoPeca] = useState('R');
   const [espessura, setEspessura] = useState('');
@@ -214,7 +140,7 @@ function App() {
   };
 
   const handleSalvar = async () => {
-    const pacoteDeDados = { cliente, imposto: parseFloat(imposto), comissao: parseFloat(comissao), precoKg: parseFloat(precoKg), frete: parseFloat(frete), pecas: listaPecas };
+    const pacoteDeDados = { cliente, imposto: parseFloat(imposto), comissao: parseFloat(comissao), precoKg: parseFloat(precoKg), frete: parseFloat(frete), processo, pecas: listaPecas };
     
     try {
       const resposta = await fetch('http://localhost:8000/calcular-orcamento', {
@@ -351,6 +277,13 @@ function App() {
                   <label className="block text-sm font-semibold text-slate-700">R$/KG Base</label>
                   <input type="number" step="0.01" value={precoKg} onChange={(e) => setPrecoKg(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-md p-2 bg-slate-50 focus:ring-2 focus:ring-cyan-500 outline-none" />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Processo</label>
+                  <select value={processo} onChange={(e) => setProcesso(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-md p-2 bg-slate-50 focus:ring-2 focus:ring-cyan-500 outline-none">
+                    <option value="LASER">Laser CNC</option>
+                    <option value="PLASMA">Plasma HD</option>
+                </select>
+              </div>
               </div>
             </div>
 
@@ -557,44 +490,100 @@ function App() {
 
       {/* TELA 2: DASHBOARD DE RESULTADO PROCESSADO */}
       {telaAtual === 'resultado' && resultadoOrcamento && (
-        <div className="p-8 max-w-5xl mx-auto mt-10">
-           <div className="bg-white p-8 rounded-xl shadow-lg border-t-8 border-cyan-500">
+        <div className="p-8 max-w-6xl mx-auto mt-6">
+           <div className="bg-white rounded-xl shadow-2xl border-t-8 border-cyan-500 overflow-hidden">
               
-              <div className="flex justify-between items-center mb-8 border-b pb-4">
+              {/* Cabeçalho do Orçamento */}
+              <div className="bg-slate-900 p-8 text-white flex justify-between items-start">
                  <div>
-                    <h1 className="text-3xl font-black text-slate-900">Orçamento Lypsyos</h1>
-                    <p className="text-slate-500 mt-1">Cliente: <span className="font-bold text-cyan-700">{cliente || 'Não informado'}</span></p>
+                    <h1 className="text-3xl font-black uppercase tracking-wider">
+                      Resumo de <span className="text-cyan-400">Produção</span>
+                    </h1>
+                    <p className="text-slate-400 mt-2 text-lg">
+                      Cliente: <span className="font-bold text-white">{cliente || 'Consumidor Final'}</span>
+                    </p>
+                    <p className="text-slate-400 text-sm mt-1">
+                      Processo: <span className="bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded uppercase font-bold">{processo}</span>
+                    </p>
                  </div>
                  <button 
                     onClick={() => setTelaAtual('formulario')} 
-                    className="bg-slate-100 text-slate-600 px-4 py-2 rounded-md font-bold hover:bg-slate-200 transition"
+                    className="bg-slate-700 text-white px-5 py-2.5 rounded-md font-bold hover:bg-slate-600 transition shadow-lg flex items-center gap-2"
                  >
-                    ← Voltar para Edição
+                    ← Nova Edição
                  </button>
               </div>
 
-              {/* CARDS DE RESUMO (Exemplo inicial de escalada) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                 <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 shadow-sm text-center">
-                    <p className="text-sm font-bold text-slate-500 uppercase">Qtd Total de Peças</p>
-                    <p className="text-4xl font-black text-slate-900 mt-2">{listaPecas.reduce((acc, p) => acc + p.qtd, 0)}<span className="text-lg text-slate-400"> un</span></p>
-                 </div>
-                 <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 shadow-sm text-center">
-                    <p className="text-sm font-bold text-slate-500 uppercase">Peso Total Estimado</p>
-                    <p className="text-4xl font-black text-slate-900 mt-2">
-                       {listaPecas.reduce((acc, p) => acc + parseFloat(p.pesoTotal), 0).toFixed(2)}<span className="text-lg text-slate-400"> Kg</span>
-                    </p>
-                 </div>
-                 <div className="bg-cyan-50 p-6 rounded-lg border border-cyan-200 shadow-sm text-center">
-                    <p className="text-sm font-bold text-cyan-800 uppercase">Preço Total Base</p>
-                    <p className="text-4xl font-black text-cyan-600 mt-2">
-                       R$ {(listaPecas.reduce((acc, p) => acc + parseFloat(p.pesoTotal), 0) * precoKg).toFixed(2)}
-                    </p>
-                 </div>
+              {/* TOTAIS GLOBAIS (Cards Topo) */}
+              <div className="p-8 bg-slate-50 border-b border-slate-200">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                   📊 Totais Globais do Orçamento
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
+                      <p className="text-xs font-bold text-slate-500 uppercase">Total Peças</p>
+                      <p className="text-2xl font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.total_pecas}</p>
+                   </div>
+                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
+                      <p className="text-xs font-bold text-slate-500 uppercase">Chapas (3x1.5m)</p>
+                      <p className="text-2xl font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.chapas_totais}</p>
+                   </div>
+                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
+                      <p className="text-xs font-bold text-slate-500 uppercase">Peso Total (Kg)</p>
+                      <p className="text-2xl font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.peso_total_kg}</p>
+                   </div>
+                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
+                      <p className="text-xs font-bold text-slate-500 uppercase">Tempo Máquina</p>
+                      <p className="text-2xl font-black text-slate-900 mt-1">
+                        {Math.floor(resultadoOrcamento.totais_globais.tempo_total_min / 60)}h {Math.round(resultadoOrcamento.totais_globais.tempo_total_min % 60)}m
+                      </p>
+                   </div>
+                   <div className="bg-cyan-50 p-4 rounded-lg border border-cyan-200 shadow-sm text-center">
+                      <p className="text-xs font-bold text-cyan-800 uppercase">Custo Material Base</p>
+                      <p className="text-2xl font-black text-cyan-700 mt-1">
+                         R$ {resultadoOrcamento.totais_globais.custo_total.toFixed(2)}
+                      </p>
+                   </div>
+                </div>
               </div>
 
-              <div className="bg-slate-900 text-slate-300 p-4 rounded text-sm font-mono text-center">
-                 {resultadoOrcamento.mensagem}
+              {/* DETALHAMENTO POR ESPESSURA (Tabela Padrão Mercado) */}
+              <div className="p-8">
+                 <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                   ⚙️ Necessidade de Materiais (Por Espessura)
+                 </h3>
+                 <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                       <thead>
+                          <tr className="bg-slate-800 text-white text-sm uppercase tracking-wider">
+                             <th className="p-4 font-semibold text-center border-b-2 border-cyan-500">Esp. (mm)</th>
+                             <th className="p-4 font-semibold border-b-2 border-cyan-500">Qtd Peças</th>
+                             <th className="p-4 font-semibold text-center border-b-2 border-cyan-500">Chapas (3x1.5m)</th>
+                             <th className="p-4 font-semibold border-b-2 border-cyan-500">Tempo de Corte</th>
+                             <th className="p-4 font-semibold border-b-2 border-cyan-500">Peso (Kg)</th>
+                             <th className="p-4 font-semibold text-right border-b-2 border-cyan-500">Montante R$</th>
+                          </tr>
+                       </thead>
+                       <tbody className="bg-white divide-y divide-slate-100">
+                          {resultadoOrcamento.detalhamento_espessuras.map((item, index) => (
+                             <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-4 font-black text-center text-slate-900 bg-slate-100">{item.espessura.toFixed(2)}</td>
+                                <td className="p-4 font-medium text-slate-700">{item.qtd_pecas}</td>
+                                <td className="p-4 text-center">
+                                  <span className="bg-cyan-100 text-cyan-800 font-bold px-3 py-1 rounded-full text-sm">
+                                    {item.chapas_necessarias} un
+                                  </span>
+                                </td>
+                                <td className="p-4 font-mono text-slate-600 text-sm">
+                                  {Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m
+                                </td>
+                                <td className="p-4 font-medium text-slate-700">{item.peso_kg.toFixed(2)} Kg</td>
+                                <td className="p-4 font-bold text-right text-slate-800">R$ {item.custo_material.toFixed(2)}</td>
+                             </tr>
+                          ))}
+                       </tbody>
+                    </table>
+                 </div>
               </div>
               
            </div>
