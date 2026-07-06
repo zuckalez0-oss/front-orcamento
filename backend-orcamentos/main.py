@@ -1,4 +1,3 @@
-import math
 import os
 import tempfile
 import uvicorn
@@ -6,7 +5,8 @@ import ezdxf
 from ezdxf import bbox
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
+import math
 from fastapi.middleware.cors import CORSMiddleware
 
 PARAMETROS_LASER = {
@@ -87,6 +87,9 @@ PARAMETROS_GUILHOTINA = {
     "7.94": {"velTeorica": 36000, "velPratica": 30600},
 },
 
+class ConfigChapa(BaseModel):
+    largura: float
+    comprimento: float
 app = FastAPI(title="API Lypsyos - Motor de Orçamentos")
 
 app.add_middleware(
@@ -123,6 +126,7 @@ class OrcamentoPayload(BaseModel):
     frete: float
     processo: str # "EX: "LASER" ou "PLASMA"
     pecas: List[Peca] # Aqui dizemos que "pecas" é uma lista contendo o modelo Peca acima
+    configChapas: Dict[str, ConfigChapa] # Dicionário com chave como espessura e valor como ConfigChapa
 
 @app.post("/calcular-orcamento")
 def calcular_orcamento(dados: OrcamentoPayload):
@@ -154,7 +158,6 @@ def calcular_orcamento(dados: OrcamentoPayload):
                 "area_total_mm2": 0.0,
                 "custo_material": 0.0
             }
-
         # --- MATEMÁTICA DA MÁQUINA ---
         parametros_maquina = tabela_ativa.get(espessura_str, {}) 
         veloc_base_mm_min = parametros_maquina.get("velPratica", 5000.0) 
@@ -192,14 +195,32 @@ def calcular_orcamento(dados: OrcamentoPayload):
     # 4. Cálculo final de Chapas por Espessura e Formatação
     detalhamento_lista = []
     chapas_total_global = 0
+    EFICIENCIA_NESTING = 0.70
+    detalhamento_lista = []
+    chapas_total_global = 0
 
     for esp_str, dados_esp in resumo_espessuras.items():
-        # Calcula quantas chapas são necessárias com base na área e na eficiência
         area_com_perda = dados_esp["area_total_mm2"] / EFICIENCIA_NESTING
-        # math.ceil arredonda para cima, pois não compramos "meia chapa" na prática
-        chapas_necessarias = max(1, math.ceil(area_com_perda / AREA_CHAPA_PADRAO_MM2)) 
+        
+        # Busca a configuração que o usuário digitou no Modal para essa espessura
+        config_chapa = dados.configChapas.get(esp_str)
+        if config_chapa:
+            area_chapa_dinamica = config_chapa.largura * config_chapa.comprimento
+        else:
+            area_chapa_dinamica = 1200 * 3000 # Fallback de segurança
+
+        # Evita divisão por zero caso o usuário digite 0
+        if area_chapa_dinamica <= 0:
+            area_chapa_dinamica = 1200 * 3000
+
+        chapas_necessarias = max(1, math.ceil(area_com_perda / area_chapa_dinamica)) 
+        
+        # Formata o nome da chapa para exibir na interface
+        dimensao_chapa_str = f"{int(config_chapa.largura)}x{int(config_chapa.comprimento)}" if config_chapa else "1200x3000"
         
         dados_esp["chapas_necessarias"] = chapas_necessarias
+        dados_esp["dimensao_chapa"] = dimensao_chapa_str
+        
         chapas_total_global += chapas_necessarias
         detalhamento_lista.append(dados_esp)
 

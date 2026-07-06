@@ -40,6 +40,10 @@ function App() {
   const [telaAtual, setTelaAtual] = useState('formulario'); // 'formulario' ou 'resultado'
   const [resultadoOrcamento, setResultadoOrcamento] = useState(null);
 
+  // 5. ESTADOS DO MODAL DE CHAPAS
+  const [isModalChapasOpen, setIsModalChapasOpen] = useState(false);
+  const [chapasConfig, setChapasConfig] = useState({});
+
 
   // FUNÇÃO: LIDAR COM UPLOAD DE DXF E INTEGRAÇÃO COM BACKEND
   const handleDxfUpload = async (e) => {
@@ -127,6 +131,32 @@ function App() {
     setDxfFile(null); setDxfPreviewSvg(null); setDxfErro(null);
   };
 
+  // Prepara o Modal agrupando as espessuras únicas da lista
+  const prepararProcessamento = () => {
+    const espessurasUnicas = [...new Set(listaPecas.map(p => p.espessura.toFixed(2)))];
+    const configInicial = {};
+    
+    espessurasUnicas.forEach(esp => {
+      configInicial[esp] = { largura: 1200, comprimento: 3000 };
+    });
+    
+    setChapasConfig(configInicial);
+    setIsModalChapasOpen(true);
+  };
+
+  // Atualiza os valores digitados no Modal
+  const handleChapaChange = (esp, campo, valor) => {
+    setChapasConfig(prev => ({
+      ...prev,
+      [esp]: { ...prev[esp], [campo]: parseFloat(valor) || 0 }
+    }));
+  };
+
+  // Aciona a impressão nativa do navegador (Gera PDF)
+  const baixarPDF = () => {
+    window.print();
+  };
+
   const removerPeca = (indexParaRemover) => {
     setListaPecas(listaPecas.filter((_, index) => index !== indexParaRemover));
   };
@@ -140,7 +170,18 @@ function App() {
   };
 
   const handleSalvar = async () => {
-    const pacoteDeDados = { cliente, imposto: parseFloat(imposto), comissao: parseFloat(comissao), precoKg: parseFloat(precoKg), frete: parseFloat(frete), processo, pecas: listaPecas };
+    setIsModalChapasOpen(false); // Fecha o modal
+    
+    const pacoteDeDados = { 
+      cliente, 
+      imposto: parseFloat(imposto), 
+      comissao: parseFloat(comissao), 
+      precoKg: parseFloat(precoKg), 
+      frete: parseFloat(frete), 
+      processo, 
+      pecas: listaPecas,
+      configChapas: chapasConfig // Envia os dados do modal para o Python
+    };
     
     try {
       const resposta = await fetch('http://localhost:8000/calcular-orcamento', {
@@ -155,7 +196,6 @@ function App() {
          setResultadoOrcamento(dadosDoBack); 
          setTelaAtual('resultado'); 
       }
-      
     } catch (erro) {
       console.error("Erro ao conectar com a API:", erro);
       alert("Erro ao processar orçamento no servidor.");
@@ -228,11 +268,11 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
+    <div className="min-h-screen bg-slate-100 font-sans relative">
+      
       {/* 🚀 HEADER / NAVBAR: GeoQuote by Lypsyos */}
       <header className="bg-slate-900 shadow-md px-8 py-4 flex justify-between items-center border-b-4 border-cyan-500 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          {/* Ícone geométrico para dar um toque tecnológico (pode ser trocado pela logo oficial depois) */}
           <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg">
             <svg className="w-6 h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path>
@@ -478,7 +518,8 @@ function App() {
             
             {listaPecas.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100">
-                <button onClick={handleSalvar} className="w-full bg-slate-900 text-white py-3 rounded-md font-bold hover:bg-slate-800 transition-colors flex justify-center items-center gap-2 shadow-lg hover:shadow-xl">
+                {/* Aqui está o botão chamando prepararProcessamento */}
+                <button onClick={prepararProcessamento} className="w-full bg-slate-900 text-white py-3 rounded-md font-bold hover:bg-slate-800 transition-colors flex justify-center items-center gap-2 shadow-lg hover:shadow-xl">
                   Processar Orçamento ➔
                 </button>
               </div>
@@ -487,6 +528,7 @@ function App() {
 
         </div>
       )}
+      
 
       {/* TELA 2: DASHBOARD DE RESULTADO PROCESSADO */}
       {telaAtual === 'resultado' && resultadoOrcamento && (
@@ -506,12 +548,24 @@ function App() {
                       Processo: <span className="bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded uppercase font-bold">{processo}</span>
                     </p>
                  </div>
-                 <button 
-                    onClick={() => setTelaAtual('formulario')} 
-                    className="bg-slate-700 text-white px-5 py-2.5 rounded-md font-bold hover:bg-slate-600 transition shadow-lg flex items-center gap-2"
-                 >
-                    ← Nova Edição
-                 </button>
+                 
+                 {/* Contêiner de botões com a classe print:hidden para não aparecer no PDF */}
+                 <div className="flex gap-4 print:hidden">
+                    <button 
+                       onClick={() => setTelaAtual('formulario')} 
+                       className="bg-slate-700 text-white px-5 py-2.5 rounded-md font-bold hover:bg-slate-600 transition shadow-lg flex items-center gap-2"
+                    >
+                       ← Nova Edição
+                    </button>
+                    
+                    {/* Botão para Baixar/Imprimir o PDF */}
+                    <button 
+                       onClick={baixarPDF} 
+                       className="bg-cyan-500 text-slate-900 px-5 py-2.5 rounded-md font-bold hover:bg-cyan-400 transition shadow-lg flex items-center gap-2"
+                    >
+                       📄 Baixar PDF
+                    </button>
+                 </div>
               </div>
 
               {/* TOTAIS GLOBAIS (Cards Topo) */}
@@ -525,7 +579,7 @@ function App() {
                       <p className="text-2xl font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.total_pecas}</p>
                    </div>
                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
-                      <p className="text-xs font-bold text-slate-500 uppercase">Chapas (3x1.5m)</p>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Chapas Totais</p>
                       <p className="text-2xl font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.chapas_totais}</p>
                    </div>
                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
@@ -558,7 +612,7 @@ function App() {
                           <tr className="bg-slate-800 text-white text-sm uppercase tracking-wider">
                              <th className="p-4 font-semibold text-center border-b-2 border-cyan-500">Esp. (mm)</th>
                              <th className="p-4 font-semibold border-b-2 border-cyan-500">Qtd Peças</th>
-                             <th className="p-4 font-semibold text-center border-b-2 border-cyan-500">Chapas (3x1.5m)</th>
+                             <th className="p-4 font-semibold text-center border-b-2 border-cyan-500">Chapas (Qtd x Tam)</th>
                              <th className="p-4 font-semibold border-b-2 border-cyan-500">Tempo de Corte</th>
                              <th className="p-4 font-semibold border-b-2 border-cyan-500">Peso (Kg)</th>
                              <th className="p-4 font-semibold text-right border-b-2 border-cyan-500">Montante R$</th>
@@ -569,11 +623,17 @@ function App() {
                              <tr key={index} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-4 font-black text-center text-slate-900 bg-slate-100">{item.espessura.toFixed(2)}</td>
                                 <td className="p-4 font-medium text-slate-700">{item.qtd_pecas}</td>
+                                
+                                {/* Exibição das Chapas + Dimensões atualizadas pelo Modal */}
                                 <td className="p-4 text-center">
-                                  <span className="bg-cyan-100 text-cyan-800 font-bold px-3 py-1 rounded-full text-sm">
+                                  <span className="bg-cyan-100 text-cyan-800 font-bold px-3 py-1 rounded-full text-sm block">
                                     {item.chapas_necessarias} un
                                   </span>
+                                  <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                                    {item.dimensao_chapa}
+                                  </span>
                                 </td>
+                                
                                 <td className="p-4 font-mono text-slate-600 text-sm">
                                   {Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m
                                 </td>
@@ -587,6 +647,57 @@ function App() {
               </div>
               
            </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIGURAÇÃO DE CHAPAS (Oculto na impressão devido a ser renderizado condicionalmente) */}
+      {isModalChapasOpen && (
+        <div className="fixed inset-0 bg-slate-900 bg-opacity-80 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-slate-900 p-5 border-b-4 border-cyan-500">
+              <h3 className="text-xl font-bold text-white uppercase tracking-wide">📐 Definição de Chapas</h3>
+              <p className="text-slate-400 text-sm mt-1">Informe a dimensão do material por espessura</p>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+              {Object.keys(chapasConfig).map(esp => (
+                <div key={esp} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex items-center justify-between gap-4">
+                  <div className="bg-slate-800 text-white font-black text-lg h-12 w-16 flex items-center justify-center rounded">
+                    {esp}
+                  </div>
+                  <div className="flex-1 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Largura (mm)</label>
+                      <input 
+                        type="number" 
+                        value={chapasConfig[esp].largura} 
+                        onChange={(e) => handleChapaChange(esp, 'largura', e.target.value)}
+                        className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Comp. (mm)</label>
+                      <input 
+                        type="number" 
+                        value={chapasConfig[esp].comprimento} 
+                        onChange={(e) => handleChapaChange(esp, 'comprimento', e.target.value)}
+                        className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-5 bg-slate-100 flex justify-end gap-3 border-t border-slate-200">
+              <button onClick={() => setIsModalChapasOpen(false)} className="px-5 py-2 font-bold text-slate-600 hover:text-slate-800 transition">
+                Cancelar
+              </button>
+              <button onClick={handleSalvar} className="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2 rounded font-bold shadow transition flex items-center justify-center">
+                Confirmar e Processar ➔
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
