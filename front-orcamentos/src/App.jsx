@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 
-
 const DEFAULT_PARAMETROS_MATERIAIS = [
   { id: 'laser-aco-carbono-1-50', maquina: 'LASER', material: 'Aço Carbono', espessura: 1.50, precoKg: 8.50, velocidadeCorte: 21250, valorHora: 180.00 },
   { id: 'laser-aco-carbono-3-00', maquina: 'LASER', material: 'Aço Carbono', espessura: 3.00, precoKg: 8.50, velocidadeCorte: 12750, valorHora: 180.00 },
   { id: 'laser-inox-1-50', maquina: 'LASER', material: 'Inox', espessura: 1.50, precoKg: 25.00, velocidadeCorte: 21250, valorHora: 220.00 },
   { id: 'plasma-aco-carbono-3-00', maquina: 'PLASMA', material: 'Aço Carbono', espessura: 3.00, precoKg: 8.50, velocidadeCorte: 4378, valorHora: 150.00 }
 ];
-
 
 function App() {
   const dataEmissao = new Date();
@@ -64,7 +62,7 @@ function App() {
   const [editandoIndex, setEditandoIndex] = useState(null);
 
   // 4. CONTROLE DE TELAS E RESULTADOS
-  const [telaAtual, setTelaAtual] = useState('formulario'); // 'formulario', 'parametrizacao' ou 'resultado'
+  const [telaAtual, setTelaAtual] = useState('formulario'); 
   const [resultadoOrcamento, setResultadoOrcamento] = useState(null);
   const [fatorNesting] = useState(0.7);
 
@@ -106,10 +104,8 @@ function App() {
       if (a.material === b.material) {
         return a.espessura - b.espessura;
       }
-
       return a.material.localeCompare(b.material);
     }
-
     return a.maquina.localeCompare(b.maquina);
   });
 
@@ -169,7 +165,6 @@ function App() {
       if (editandoParametroIndex !== null) {
         return prev.map((item) => (item.id === editandoParametroIndex ? novoParametro : item));
       }
-
       return [...prev, novoParametro];
     });
 
@@ -210,8 +205,6 @@ function App() {
     setEspessuraSelecionada(primeiraEspessuraDoMaterial ? primeiraEspessuraDoMaterial.espessura.toFixed(2) : '');
   };
 
-
-  // FUNÇÃO: LIDAR COM UPLOAD DE DXF E INTEGRAÇÃO COM BACKEND
   const handleDxfUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -243,7 +236,7 @@ function App() {
 
       setDimA(dados.dimA);
       setDimB(dados.dimB);
-      setNFuros(dados.nFuros || 0);    
+      setNFuros(dados.nFuros || 0);  
       setDiaFuro(dados.diaFuro || 0);  
       setId(file.name.replace('.dxf', ''));
       setDxfPreviewSvg(dados.svgMarkup);
@@ -260,7 +253,6 @@ function App() {
     }
   };
 
-  // FUNÇÃO: ADICIONAR OU ATUALIZAR
   const adicionarOuAtualizarPeca = (e) => {
     e.preventDefault();
 
@@ -335,7 +327,6 @@ function App() {
     }
   };
 
-  // Prepara o Modal agrupando as espessuras únicas da lista
   const prepararProcessamento = () => {
     const espessurasUnicas = [...new Set(listaPecas.map(p => p.espessura.toFixed(2)))];
     const configInicial = {};
@@ -348,7 +339,6 @@ function App() {
     setIsModalChapasOpen(true);
   };
 
-  // Atualiza os valores digitados no Modal
   const handleChapaChange = (esp, campo, valor) => {
     setChapasConfig(prev => ({
       ...prev,
@@ -356,7 +346,6 @@ function App() {
     }));
   };
 
-  // Aciona a impressão nativa do navegador (Gera PDF)
   const baixarPDF = () => {
     const tituloOriginal = document.title;
     document.title = `Orcamento-${cliente || 'cliente'}`;
@@ -383,7 +372,7 @@ function App() {
   };
 
   const handleSalvar = async () => {
-    setIsModalChapasOpen(false); // Fecha o modal
+    setIsModalChapasOpen(false); 
     
     const pacoteDeDados = { 
       cliente, 
@@ -417,13 +406,12 @@ function App() {
     }
   };
 
-  // FUNÇÃO: PREVIEW VISUAL CNC
   const renderPreviewPeca = () => {
     if (isUploadingDxf) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1626] rounded-lg p-4 relative overflow-hidden border border-slate-700 shadow-inner min-h-[250px]">
-           <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-           <span className="text-cyan-400 text-sm font-mono mt-3">Analisando vetores...</span>
+           <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+           <span className="text-orange-400 text-sm font-mono mt-3">Analisando vetores...</span>
         </div>
       );
     }
@@ -431,10 +419,10 @@ function App() {
     if (dxfPreviewSvg) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1626] rounded-lg p-4 relative overflow-hidden border border-slate-700 shadow-inner min-h-[250px]">
-          <span className="absolute top-2 left-2 text-xs font-mono text-cyan-400">Preview Real (DXF)</span>
+          <span className="absolute top-2 left-2 text-xs font-mono text-orange-400">Preview Real (DXF)</span>
           <div 
-            className="w-full h-full drop-shadow-2xl flex items-center justify-center"
-            dangerouslySetInnerHTML={{ __html: dxfPreviewSvg }} 
+            className="w-full h-full drop-shadow-2xl flex items-center justify-center preview-svg-container"
+            dangerouslySetInnerHTML={{ __html: dxfPreviewSvg.replace(/#00C4CC/g, '#F97316') }} 
           />
           <div className="absolute bottom-2 text-center text-xs text-slate-400 font-mono">
             X={dimA}mm | Y={dimB}mm
@@ -451,31 +439,31 @@ function App() {
     const offY = parseFloat(furoOffsetY) || 10;
 
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1626] rounded-lg p-4 relative overflow-hidden border border-slate-700 shadow-inner min-h-[250px]">
-        <span className="absolute top-2 left-2 text-xs font-mono text-slate-400">Preview Geométrico</span>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0A0A0A] rounded-lg p-4 relative overflow-hidden border border-slate-800 shadow-inner min-h-[250px]">
+        <span className="absolute top-2 left-2 text-xs font-mono text-slate-500">Preview Geométrico</span>
         
         <svg viewBox={`0 0 ${w + 40} ${h + 40}`} className="w-full h-full max-h-48 drop-shadow-2xl">
-          <rect x="20" y="20" width={w} height={h} fill="#e2e8f0" stroke="#334155" strokeWidth="1.5" rx="2" />
+          <rect x="20" y="20" width={w} height={h} fill="none" stroke="#F97316" strokeWidth="2" rx="2" strokeDasharray="4 2" />
           {furos > 0 && (
             furoPadraoCantos && furos === 4 ? (
               <>
-                <circle cx={20 + offX} cy={20 + offY} r={raioFuro} fill="#0d1626" />
-                <circle cx={20 + w - offX} cy={20 + offY} r={raioFuro} fill="#0d1626" />
-                <circle cx={20 + offX} cy={20 + h - offY} r={raioFuro} fill="#0d1626" />
-                <circle cx={20 + w - offX} cy={20 + h - offY} r={raioFuro} fill="#0d1626" />
+                <circle cx={20 + offX} cy={20 + offY} r={raioFuro} fill="#F97316" />
+                <circle cx={20 + w - offX} cy={20 + offY} r={raioFuro} fill="#F97316" />
+                <circle cx={20 + offX} cy={20 + h - offY} r={raioFuro} fill="#F97316" />
+                <circle cx={20 + w - offX} cy={20 + h - offY} r={raioFuro} fill="#F97316" />
               </>
             ) : (
               furos <= 5 ? (
                 Array.from({ length: furos }).map((_, i) => (
-                  <circle key={i} cx={20 + (w / (furos + 1)) * (i + 1)} cy={20 + h / 2} r={raioFuro} fill="#0d1626" />
+                  <circle key={i} cx={20 + (w / (furos + 1)) * (i + 1)} cy={20 + h / 2} r={raioFuro} fill="#F97316" />
                 ))
               ) : (
-                <text x={20 + w/2} y={20 + h/2} textAnchor="middle" fill="#0d1626" fontSize={Math.min(w, h) * 0.2}>+{furos} Furos</text>
+                <text x={20 + w/2} y={20 + h/2} textAnchor="middle" fill="#F97316" fontSize={Math.min(w, h) * 0.2}>+{furos} Furos</text>
               )
             )
           )}
         </svg>
-        <div className="mt-2 text-center text-xs text-slate-400 font-mono">
+        <div className="mt-2 text-center text-xs text-orange-500 font-mono">
           Eixos: X={w}mm | Y={h}mm
         </div>
       </div>
@@ -483,823 +471,518 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_38%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] font-sans relative text-slate-900">
+    <div className="h-screen flex flex-col bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.1),_transparent_40%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] font-sans text-slate-900 overflow-hidden">
       
-      {/* 🚀 HEADER / NAVBAR: GeoQuote by Lypsyos */}
-      <header className="bg-slate-950/95 backdrop-blur border-b border-cyan-400/30 shadow-[0_12px_40px_-20px_rgba(15,23,42,0.9)] px-8 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-300 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-300/30">
-            <svg className="w-6 h-6 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path>
-            </svg>
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-white uppercase">
-            Geo<span className="text-cyan-400">Quote</span>
-          </h1>
-        </div>
+      {/* 🚀 HEADER / NAVBAR */}
+<header className="bg-slate-950/95 backdrop-blur border-b border-orange-500/30 shadow-[0_12px_40px_-20px_rgba(15,23,42,0.9)] px-4 lg:px-8 py-3 lg:py-4 flex flex-col sm:flex-row justify-between items-center shrink-0 z-50 gap-3 print:hidden">
+  <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
+    
+    {/* 👇 AQUI ESTÁ A SUBSTITUIÇÃO DO LOGO */}
+    <img 
+      src="/logo-geoquote.svg" 
+      alt="GeoQuote Logo" 
+      className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-cover shadow-lg ring-1 ring-orange-400/30 shrink-0" 
+    />
+
+    <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white uppercase">
+      Geo<span className="text-orange-500">Quote</span>
+    </h1>
+  </div>
+  
+  <div className="flex flex-wrap items-center justify-center gap-2">
+    <button onClick={() => setTelaAtual('formulario')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Orçamento</button>
+    <button onClick={() => setTelaAtual('parametrizacao')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Parâmetros Globais</button>
+    <span className="hidden sm:inline-block text-white font-bold tracking-widest uppercase text-[10px] lg:text-xs bg-slate-800 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full border border-slate-700">Lypsyos</span>
+  </div>
+</header>
+
+      {/* ÁREA PRINCIPAL */}
+      <main className="flex-1 relative overflow-hidden">
         
-        <div className="text-slate-400 text-sm font-medium tracking-wide">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setTelaAtual('formulario')} className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-white hover:bg-cyan-400 hover:text-slate-950 hover:border-cyan-300 transition-all duration-300 shadow-sm">Orçamento</button>
-            <button onClick={() => setTelaAtual('parametrizacao')} className="px-4 py-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-300 hover:text-slate-950 hover:border-cyan-200 transition-all duration-300 shadow-sm">Parâmetros Globais</button>
-            <span className="text-white font-bold tracking-widest uppercase text-xs bg-slate-800 px-3 py-2 rounded-full border border-slate-700 shadow-inner">Lypsyos</span>
-          </div>
-        </div>
-      </header>
-
-      {telaAtual === 'parametrizacao' && (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-          <div className="bg-white/90 backdrop-blur rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.45)] border border-slate-200/70 border-t-4 border-cyan-500 p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Parâmetros Globais</h2>
-                <p className="text-slate-500 mt-1">Matéria-prima, taxa horária e impostos em abas separadas.</p>
-              </div>
-              <button onClick={() => setTelaAtual('formulario')} className="bg-slate-900 text-white px-5 py-3 rounded-full font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 hover:shadow-cyan-500/10 hover:-translate-y-0.5">
-                Voltar ao orçamento
-              </button>
-            </div>
-
-            <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-full w-fit">
-              <button
-                type="button"
-                onClick={() => setAbaGlobal('materiais')}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${abaGlobal === 'materiais' ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Matéria-prima
-              </button>
-              <button
-                type="button"
-                onClick={() => setAbaGlobal('tarifacao')}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${abaGlobal === 'tarifacao' ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Tarifação e Impostos
-              </button>
-            </div>
-
-            {abaGlobal === 'materiais' ? (
-              <form onSubmit={salvarParametroMaterial} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-slate-50/90 p-4 rounded-2xl border border-slate-200 shadow-inner">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Máquina</label>
-                  <select
-                    value={formParametro.maquina}
-                    onChange={(e) => atualizarFormParametro('maquina', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
-                  >
-                    {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
-                      <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser' : 'Plasma'}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Material</label>
-                  <input
-                    type="text"
-                    value={formParametro.material}
-                    onChange={(e) => atualizarFormParametro('material', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-                    placeholder="Ex: Aço Carbono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Espessura (mm)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formParametro.espessura}
-                    onChange={(e) => atualizarFormParametro('espessura', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Preço/kg</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formParametro.precoKg}
-                    onChange={(e) => atualizarFormParametro('precoKg', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Velocidade Corte</label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={formParametro.velocidadeCorte}
-                    onChange={(e) => atualizarFormParametro('velocidadeCorte', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">R$/Hora</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formParametro.valorHora}
-                    onChange={(e) => atualizarFormParametro('valorHora', e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none"
-                  />
-                </div>
-                <div className="md:col-span-6 flex gap-3 justify-end pt-2">
-                  {editandoParametroIndex !== null && (
-                    <button type="button" onClick={limparFormParametro} className="px-5 py-3 rounded-full border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-all hover:-translate-y-0.5">
-                      Cancelar edição
-                    </button>
-                  )}
-                  <button type="submit" className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white px-6 py-3 rounded-full font-bold shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:-translate-y-0.5 transition-all">
-                    {editandoParametroIndex !== null ? 'Salvar parâmetro' : 'Adicionar parâmetro'}
+        {/* TELA: PARAMETRIZAÇÃO GLOBAIS */}
+        {telaAtual === 'parametrizacao' && (
+          <div className="absolute inset-0 p-4 lg:p-6 overflow-y-auto scrollbar-thin">
+            <div className="max-w-7xl mx-auto space-y-6 pb-10">
+              <div className="bg-white/90 backdrop-blur rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.45)] border border-slate-200/70 border-t-4 border-orange-500 p-4 lg:p-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-xl lg:text-2xl font-black text-slate-900 uppercase tracking-tight">Parâmetros Globais</h2>
+                    <p className="text-sm text-slate-500 mt-1">Matéria-prima, taxa horária e impostos em abas separadas.</p>
+                  </div>
+                  <button onClick={() => setTelaAtual('formulario')} className="bg-slate-900 text-white px-5 py-2.5 rounded-full font-bold hover:bg-slate-800 transition-all text-sm w-full md:w-auto text-center">
+                    Voltar ao orçamento
                   </button>
                 </div>
-              </form>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-slate-50/90 p-5 rounded-2xl border border-slate-200 shadow-inner space-y-4">
-                  <h3 className="text-lg font-black text-slate-900 tracking-tight">Tarifação e Impostos</h3>
-                  <p className="text-sm text-slate-500">Digite os percentuais da formação de preço e o frete em valor fixo.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Imposto (%)</label>
-                      <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-3 shadow-sm">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={imposto}
-                          onChange={(e) => setImposto(e.target.value)}
-                          className="w-full rounded-xl p-3 outline-none"
-                        />
-                        <span className="text-slate-400 font-black">%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Comissão (%)</label>
-                      <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-3 shadow-sm">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={comissao}
-                          onChange={(e) => setComissao(e.target.value)}
-                          className="w-full rounded-xl p-3 outline-none"
-                        />
-                        <span className="text-slate-400 font-black">%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">MARKUP (%)</label>
-                      <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-3 shadow-sm">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={margemLucro}
-                          onChange={(e) => setMargemLucro(e.target.value)}
-                          className="w-full rounded-xl p-3 outline-none"
-                        />
-                        <span className="text-slate-400 font-black">%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Frete (R$)</label>
-                      <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-3 shadow-sm">
-                        <span className="pl-3 text-slate-400 font-black">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={frete}
-                          onChange={(e) => setFrete(e.target.value)}
-                          className="w-full rounded-xl p-3 outline-none text-right"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-950">
-                    <span className="font-black">Dica:</span> impostos, comissão e margem formam a taxa incidente; o frete é somado somente no final.
-                  </div>
-                </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900">Resumo da Cascata</h3>
-                    <span className="text-xs font-bold text-cyan-700 bg-cyan-50 px-3 py-1 rounded-full">Global</span>
-                  </div>
-                  <div className="p-5 space-y-3 text-sm text-slate-600">
-                    <div className="flex justify-between"><span>Taxas Incidentes</span><strong>{Number(imposto) + Number(comissao) + Number(margemLucro)}%</strong></div>
-                    <div className="flex justify-between"><span>Frete</span><strong>R$ {Number(frete).toFixed(2)}</strong></div>
-                    <div className="border-t border-slate-200 pt-3 flex justify-between text-slate-900"><span className="font-bold">Somatório final</span><strong>CP - TI + Frete</strong></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {abaGlobal === 'materiais' && (
-            <div className="bg-white/90 backdrop-blur rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.32)] border border-slate-200 overflow-hidden">
-              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">Tabela de parâmetros cadastrados</h3>
-                <span className="text-sm font-semibold text-slate-500">{parametrosOrdenados.length} registros</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-950 text-white text-sm uppercase tracking-wider">
-                    <tr>
-                      <th className="p-4">Máquina</th>
-                      <th className="p-4">Material</th>
-                      <th className="p-4">Espessura</th>
-                      <th className="p-4">R$/Kg</th>
-                      <th className="p-4">R$/Hora</th>
-                      <th className="p-4">Velocidade</th>
-                      <th className="p-4 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {parametrosOrdenados.map((item, index) => (
-                      <tr key={item.id || `${item.maquina}-${item.material}-${item.espessura}-${index}`} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-4 font-semibold text-cyan-700">{item.maquina}</td>
-                        <td className="p-4 font-semibold text-slate-800">{item.material}</td>
-                        <td className="p-4 text-slate-600">{item.espessura.toFixed(2)} mm</td>
-                        <td className="p-4 text-slate-600">R$ {item.precoKg.toFixed(2)}</td>
-                        <td className="p-4 text-slate-600">R$ {Number(item.valorHora || 0).toFixed(2)}</td>
-                        <td className="p-4 text-slate-600">{item.velocidadeCorte.toLocaleString('pt-BR')} mm/min</td>
-                        <td className="p-4 text-right">
-                          <div className="flex gap-2 justify-end">
-                            <button onClick={() => editarParametroMaterial(index)} className="text-[10px] bg-slate-100 text-slate-700 px-3 py-2 rounded-full uppercase font-bold hover:bg-slate-200 transition-all">Editar</button>
-                            <button onClick={() => removerParametroMaterial(index)} className="text-[10px] bg-red-50 text-red-600 px-3 py-2 rounded-full uppercase font-bold hover:bg-red-100 transition-all">Excluir</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {parametrosOrdenados.length === 0 && (
-                      <tr>
-                        <td colSpan="7" className="p-6 text-center text-slate-500">Nenhum parâmetro cadastrado.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* TELA 1: FORMULÁRIO DE ENTRADA */}
-      {telaAtual === 'formulario' && (
-        <div className="p-6 flex flex-col md:flex-row gap-6">
-          
-          {/* LADO ESQUERDO: FORMULÁRIOS */}
-          <div className="w-full md:w-2/3 space-y-6">
-            
-            {/* PARÂMETROS DO ORÇAMENTO - TEMA LYPSYOS */}
-            <div className="bg-white/90 backdrop-blur p-6 rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.32)] border border-slate-200 border-t-4 border-slate-900">
-              <h2 className="text-xl font-black text-slate-900 mb-4 flex items-center gap-2 tracking-tight">
-                  ⚙️ Parâmetros do Orçamento
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700">Cliente</label>
-                  <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all bg-white shadow-sm" placeholder="Nome da empresa" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700">Máquina</label>
-                  <select value={maquinaSelecionada} onChange={(e) => { setMaquinaSelecionada(e.target.value); setProcesso(e.target.value); selecionarMaquina(e.target.value); }} className="mt-1 w-full border border-slate-300 rounded-xl p-3 bg-slate-50 focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm">
-                    {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
-                      <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser CNC' : 'Plasma HD'}</option>
-                    ))}
-                </select>
-              </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700">Material Base</label>
-                  <select
-                    value={materialSelecionado}
-                    onChange={(e) => selecionarMaterial(e.target.value)}
-                    className="mt-1 w-full border border-slate-300 rounded-xl p-3 bg-slate-50 focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm"
+                <div className="flex flex-wrap gap-2 mb-6 p-1 bg-slate-100 rounded-full w-full sm:w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setAbaGlobal('materiais')}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-xs lg:text-sm font-bold transition-all ${abaGlobal === 'materiais' ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-600 hover:text-slate-900'}`}
                   >
-                    {materiaisDisponiveis.length === 0 ? (
-                      <option value="">Cadastre um material</option>
-                    ) : (
-                      materiaisDisponiveis.map((material) => (
-                        <option key={material} value={material}>{material}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              </div>
-              {parametroAtual && (
-                <div className="mt-4 bg-gradient-to-r from-cyan-50 to-sky-50 border border-cyan-200 rounded-2xl p-4 text-sm text-cyan-950 flex flex-wrap gap-4 shadow-inner">
-                  <span><b>Máquina:</b> {parametroAtual.maquina}</span>
-                  <span><b>Preço/kg:</b> R$ {parametroAtual.precoKg.toFixed(2)}</span>
-                  <span><b>R$/Hora:</b> R$ {parametroAtual.valorHora.toFixed(2)}</span>
-                  <span><b>Velocidade:</b> {parametroAtual.velocidadeCorte.toLocaleString('pt-BR')} mm/min</span>
-                  <span><b>Frete:</b> R$ {Number(frete).toFixed(2)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* INSERÇÃO DE PEÇAS E UPLOAD DE DXF */}
-            <div className="bg-white/90 backdrop-blur p-6 rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.32)] border border-slate-200 border-t-4 border-cyan-500">
-              <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-3">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  {editandoIndex !== null ? '✏️ Editando Peça' : 'Adicionar Nova Peça'}
-                </h2>
-                {editandoIndex !== null && (
-                  <button onClick={() => { setEditandoIndex(null); limparFormulario(); }} className="text-sm text-slate-500 hover:text-red-500 transition-colors font-bold uppercase tracking-wider">
-                    Cancelar Edição
+                    Matéria-prima
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbaGlobal('tarifacao')}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-full text-xs lg:text-sm font-bold transition-all ${abaGlobal === 'tarifacao' ? 'bg-slate-950 text-white shadow-lg' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Tarifação/Impostos
+                  </button>
+                </div>
+
+                {abaGlobal === 'materiais' ? (
+                  <form onSubmit={salvarParametroMaterial} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end bg-slate-50/90 p-4 rounded-2xl border border-slate-200 shadow-inner">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Máquina</label>
+                      <select value={formParametro.maquina} onChange={(e) => atualizarFormParametro('maquina', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-orange-500 outline-none text-sm">
+                        {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
+                          <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser' : 'Plasma'}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Material</label>
+                      <input type="text" value={formParametro.material} onChange={(e) => atualizarFormParametro('material', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="Ex: Aço Carbono"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Espessura</label>
+                      <input type="number" step="0.01" value={formParametro.espessura} onChange={(e) => atualizarFormParametro('espessura', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Preço/kg</label>
+                      <input type="number" step="0.01" value={formParametro.precoKg} onChange={(e) => atualizarFormParametro('precoKg', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Velocidade</label>
+                      <input type="number" step="1" value={formParametro.velocidadeCorte} onChange={(e) => atualizarFormParametro('velocidadeCorte', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase">R$/Hora</label>
+                      <input type="number" step="0.01" value={formParametro.valorHora} onChange={(e) => atualizarFormParametro('valorHora', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-6 flex flex-col sm:flex-row gap-3 justify-end pt-2">
+                      {editandoParametroIndex !== null && (
+                        <button type="button" onClick={limparFormParametro} className="w-full sm:w-auto px-5 py-2.5 rounded-full border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 text-sm">Cancelar edição</button>
+                      )}
+                      <button type="submit" className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-600 text-sm">
+                        {editandoParametroIndex !== null ? 'Salvar' : 'Adicionar'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-slate-50/90 p-4 lg:p-5 rounded-2xl border border-slate-200 shadow-inner space-y-4">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight">Tarifação e Impostos</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase">Imposto (%)</label>
+                          <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-2 shadow-sm"><input type="number" step="0.01" value={imposto} onChange={(e) => setImposto(e.target.value)} className="w-full rounded-xl p-2 text-sm outline-none"/><span className="text-slate-400 font-black text-xs">%</span></div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase">Comissão (%)</label>
+                          <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-2 shadow-sm"><input type="number" step="0.01" value={comissao} onChange={(e) => setComissao(e.target.value)} className="w-full rounded-xl p-2 text-sm outline-none"/><span className="text-slate-400 font-black text-xs">%</span></div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase">MARKUP (%)</label>
+                          <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white pr-2 shadow-sm"><input type="number" step="0.01" value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)} className="w-full rounded-xl p-2 text-sm outline-none"/><span className="text-slate-400 font-black text-xs">%</span></div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase">Frete (R$)</label>
+                          <div className="mt-1 flex items-center rounded-xl border border-slate-300 bg-white px-2 shadow-sm"><span className="text-slate-400 font-black text-xs">R$</span><input type="number" step="0.01" value={frete} onChange={(e) => setFrete(e.target.value)} className="w-full rounded-xl p-2 text-sm outline-none text-right"/></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="col-span-2 space-y-6">
-                  
-                  {/* ÁREA DE UPLOAD DXF COM VALIDAÇÃO VISUAL */}
-                  <div className="space-y-2">
-                    <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors relative 
-                      ${dxfErro ? 'border-red-400 bg-red-50 hover:bg-red-100' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
-                        <input 
-                          type="file" 
-                          accept=".dxf" 
-                          onChange={handleDxfUpload} 
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          disabled={isUploadingDxf}
-                        />
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                          <svg className={`w-8 h-8 ${dxfErro ? 'text-red-500' : 'text-cyan-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                          </svg>
-                          <span className={`text-sm font-semibold ${dxfErro ? 'text-red-700' : 'text-slate-700'}`}>
-                              {isUploadingDxf ? 'Processando e validando vetores...' : dxfFile ? `Arquivo: ${dxfFile.name}` : 'Arraste um arquivo DXF para importar'}
-                          </span>
-                          {dxfImportado && (
-                            <span className="text-xs font-black text-cyan-700 bg-cyan-100 px-3 py-1 rounded-full">DXF importado e campos travados</span>
-                          )}
-                        </div>
-                    </div>
-                    
-                    {/* Alerta de Validação */}
-                    {dxfErro && (
-                      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded text-sm flex items-start shadow-sm mt-2">
-                        <span className="mr-2 font-bold">⚠️</span>
-                        <p>{dxfErro}</p>
-                      </div>
-                    )}
-
-                    {dxfImportado && (
-                      <div className="grid grid-cols-3 gap-3 text-xs">
-                        <div className="bg-slate-950 text-white rounded-2xl p-3 shadow-sm">
-                          <p className="uppercase font-black text-slate-400">Perímetro</p>
-                          <p className="text-lg font-black text-cyan-300 mt-1">{dxfPerimetroCorteMm.toFixed(2)} mm</p>
-                        </div>
-                        <div className="bg-slate-950 text-white rounded-2xl p-3 shadow-sm">
-                          <p className="uppercase font-black text-slate-400">Área útil</p>
-                          <p className="text-lg font-black text-cyan-300 mt-1">{dxfAreaUtilMm2.toFixed(2)} mm²</p>
-                        </div>
-                        <div className="bg-slate-950 text-white rounded-2xl p-3 shadow-sm">
-                          <p className="uppercase font-black text-slate-400">Furos</p>
-                          <p className="text-lg font-black text-cyan-300 mt-1">{nFuros}</p>
-                        </div>
-                      </div>
-                    )}
+              {abaGlobal === 'materiais' && (
+                <div className="bg-white/90 backdrop-blur rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
+                  <div className="p-4 lg:p-6 border-b border-slate-200 flex items-center justify-between">
+                    <h3 className="text-base lg:text-lg font-bold text-slate-900">Parâmetros cadastrados</h3>
+                    <span className="text-xs font-semibold text-slate-500">{parametrosOrdenados.length} reg.</span>
                   </div>
-
-                  <form onSubmit={adicionarOuAtualizarPeca} className="space-y-5">
-                    
-                    {/* Linha 1: Dados Base */}
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Identificador</label>
-                        <input type="text" value={id} onChange={(e) => setId(e.target.value)} required className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm" placeholder="Ex: PC-01" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">QTD</label>
-                        <input type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} required min="1" className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Geometria</label>
-                        <select value={tipoPeca} onChange={(e) => setTipoPeca(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm">
-                            <option value="R">Retangular (R)</option>
-                            <option value="Q">Quadrado (Q)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Espessura (mm)</label>
-                        <select
-                          value={espessuraSelecionada}
-                          onChange={(e) => setEspessuraSelecionada(e.target.value)}
-                          required
-                          disabled={espessurasDisponiveis.length === 0}
-                          className="mt-1 w-full border border-slate-300 rounded-xl p-3 bg-white focus:ring-2 focus:ring-cyan-500 outline-none shadow-sm"
-                        >
-                          {espessurasDisponiveis.length === 0 ? (
-                            <option value="">Selecione uma máquina/material</option>
-                          ) : (
-                            espessurasDisponiveis.map((espessura) => (
-                              <option key={espessura} value={espessura}>{espessura} mm</option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Linha 2: Dimensões e Furação */}
-                    <div className="grid grid-cols-5 gap-4 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Dim A (X)</label>
-                        <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className={`mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none ${dxfImportado ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Dim B (Y)</label>
-                        <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className={`mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none ${dxfImportado ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Dim C (Z/Dobra)</label>
-                        <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none bg-white" placeholder="Opcional" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Nº Furos</label>
-                        <input type="number" value={nFuros} onChange={(e) => setNFuros(e.target.value)} min="0" className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700">Ø Furo (mm)</label>
-                        <input type="number" value={diaFuro} onChange={(e) => setDiaFuro(e.target.value)} min="0" step="0.1" className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none bg-white" />
-                      </div>
-                    </div>
-
-                    {/* Opções Avançadas de Furação */}
-                    {nFuros > 0 && (
-                      <div className="bg-cyan-50 border border-cyan-200 p-3 rounded grid grid-cols-3 gap-4 items-center transition-all">
-                        <div className="flex items-center space-x-2">
-                          <input 
-                            type="checkbox" 
-                            id="checkCantos"
-                            checked={furoPadraoCantos} 
-                            onChange={(e) => {
-                              const isChecked = e.target.checked;
-                              setFuroPadraoCantos(isChecked);
-                              if (isChecked) setNFuros(4); 
-                            }} 
-                            className="w-4 h-4 text-cyan-600 rounded border-cyan-300 focus:ring-cyan-500"
-                          />
-                          <label htmlFor="checkCantos" className="text-sm font-bold text-cyan-900 cursor-pointer">
-                            Padrão: 4 Cantos
-                          </label>
-                        </div>
-                        
-                        {furoPadraoCantos && (
-                          <>
-                            <div>
-                              <label className="block text-xs font-medium text-cyan-800">Offset X (mm)</label>
-                              <input type="number" value={furoOffsetX} onChange={(e) => setFuroOffsetX(e.target.value)} required className="mt-1 w-full border border-cyan-200 rounded p-1 text-sm outline-none focus:ring-2 focus:ring-cyan-400" placeholder="Ex: 25" />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-cyan-800">Offset Y (mm)</label>
-                              <input type="number" value={furoOffsetY} onChange={(e) => setFuroOffsetY(e.target.value)} required className="mt-1 w-full border border-cyan-200 rounded p-1 text-sm outline-none focus:ring-2 focus:ring-cyan-400" placeholder="Ex: 25" />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    <button type="submit" className={`w-full text-white font-black py-4 rounded-full transition-all shadow-lg flex justify-center items-center gap-2 hover:-translate-y-0.5 ${editandoIndex !== null ? 'bg-slate-800 hover:bg-slate-950 shadow-slate-900/20' : 'bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 shadow-cyan-500/30'}`}>
-                      {editandoIndex !== null ? '✓ Salvar Alterações' : '+ Adicionar ao Orçamento'}
-                    </button>
-                  </form>
-                </div>
-
-                {/* PREVIEW CONTAINER */}
-                <div className="col-span-1 h-full min-h-[250px] flex flex-col">
-                  {renderPreviewPeca()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* LADO DIREITO: LISTA LATERAL */}
-          <div className="w-full md:w-1/3 bg-white/90 backdrop-blur p-6 rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.32)] border border-slate-200 border-t-4 border-slate-900 flex flex-col">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">Itens do Orçamento</h2>
-              <span className="bg-cyan-100 text-cyan-800 text-xs font-bold px-3 py-1 rounded-full">{listaPecas.length} peças</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300">
-              {listaPecas.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-slate-400 space-y-2">
-                    <svg className="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                    <p className="text-sm font-medium">Nenhuma peça cadastrada.</p>
-                </div>
-              ) : (
-                listaPecas.map((peca, index) => (
-                  <div key={index} className="border border-slate-200 p-4 rounded-2xl bg-white shadow-sm relative group hover:border-cyan-300 hover:shadow-xl transition-all duration-300">
-                    
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="font-bold text-slate-800">{peca.id}</span>
-                        <div className="flex gap-2 mt-2">
-                          <button onClick={() => editarPeca(index)} className="text-[10px] bg-slate-100 text-slate-700 px-3 py-2 rounded-full hover:bg-slate-200 uppercase font-bold transition-all">Editar</button>
-                          <button onClick={() => removerPeca(index)} className="text-[10px] bg-red-50 text-red-600 px-3 py-2 rounded-full hover:bg-red-100 uppercase font-bold transition-all">Remover</button>
-                        </div>
-                      </div>
-                      <span className="text-sm font-bold bg-slate-900 text-white px-2 py-1 rounded shadow-sm">{peca.qtd} UN</span>
-                    </div>
-                    
-                    <div className="text-xs text-slate-600 mt-3 grid grid-cols-2 gap-y-2 border-t border-slate-100 pt-3">
-                      <p>Máquina: <b className="text-slate-800">{peca.maquina}</b></p>
-                      <p>Espessura: <b className="text-slate-800">{peca.espessura}mm</b></p>
-                      <p>Material: <b className="text-slate-800">{peca.material}</b></p>
-                      <p>Dim: <b className="text-slate-800">{peca.dimA}x{peca.dimB}</b></p>
-                      <p>Peso Unt: <b className="text-slate-800">{peca.pesoUnitario}kg</b></p>
-                      <p>R$/Kg: <b className="text-slate-800">R$ {Number(peca.precoKgBase || 0).toFixed(2)}</b></p>
-                      <p>R$/Hora: <b className="text-slate-800">R$ {Number(peca.valorHora || 0).toFixed(2)}</b></p>
-                      <p className="text-cyan-700 font-semibold">Peso Tot: <b>{peca.pesoTotal}kg</b></p>
-                      {peca.nFuros > 0 && (
-                         <p className="col-span-2 text-slate-500 bg-slate-50 p-1 rounded">
-                           ⚙️ {peca.nFuros} Furo(s) Ø{peca.diaFuro} 
-                           {peca.furoPadraoCantos ? ` (${peca.furoOffsetX}x${peca.furoOffsetY})` : ''}
-                         </p>
-                      )}
-                    </div>
+                  <div className="overflow-x-auto scrollbar-thin">
+                    <table className="w-full text-left min-w-[600px]">
+                      <thead className="bg-slate-950 text-white text-[10px] lg:text-xs uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3 lg:p-4">Máquina</th><th className="p-3 lg:p-4">Material</th><th className="p-3 lg:p-4">Espessura</th>
+                          <th className="p-3 lg:p-4">R$/Kg</th><th className="p-3 lg:p-4">R$/Hora</th><th className="p-3 lg:p-4">Velocidade</th>
+                          <th className="p-3 lg:p-4 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white text-xs lg:text-sm">
+                        {parametrosOrdenados.map((item, index) => (
+                          <tr key={item.id || index} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3 lg:p-4 font-semibold text-orange-600">{item.maquina}</td><td className="p-3 lg:p-4 font-semibold">{item.material}</td><td className="p-3 lg:p-4">{item.espessura.toFixed(2)} mm</td>
+                            <td className="p-3 lg:p-4">R$ {item.precoKg.toFixed(2)}</td><td className="p-3 lg:p-4">R$ {Number(item.valorHora || 0).toFixed(2)}</td><td className="p-3 lg:p-4">{item.velocidadeCorte} mm/min</td>
+                            <td className="p-3 lg:p-4 text-right">
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => editarParametroMaterial(index)} className="text-[10px] bg-slate-100 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
+                                <button onClick={() => removerParametroMaterial(index)} className="text-[10px] bg-red-50 text-red-600 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ))
+                </div>
               )}
             </div>
-            
-            {listaPecas.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                {/* Aqui está o botão chamando prepararProcessamento */}
-                <button onClick={prepararProcessamento} className="w-full bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-900 text-white py-4 rounded-full font-black hover:from-slate-900 hover:to-cyan-800 transition-all flex justify-center items-center gap-2 shadow-lg shadow-slate-900/20 hover:shadow-cyan-500/20 hover:-translate-y-0.5">
-                  Processar Orçamento ➔
-                </button>
-              </div>
-            )}
           </div>
-
-        </div>
-      )}
-      
-
-      {/* TELA 2: DASHBOARD DE RESULTADO PROCESSADO */}
-      {telaAtual === 'resultado' && resultadoOrcamento && (
-          <div className="p-8 max-w-7xl mx-auto mt-6 print:p-0 print:m-0 print:max-w-none print:w-full">
+        )}
+        
+        {/* TELA: FORMULÁRIO DE ENTRADA */}
+        {telaAtual === 'formulario' && (
+          <div className="absolute inset-0 p-4 lg:p-6 flex flex-col lg:flex-row gap-6 overflow-y-auto lg:overflow-hidden">
             
-            {/* Adicionado print:shadow-none, print:border-none, print:bg-white para limpar o papel */}
-            <div className="bg-white/90 backdrop-blur rounded-3xl shadow-[0_24px_90px_-35px_rgba(15,23,42,0.35)] border border-slate-200 border-t-8 border-cyan-500 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-white print:overflow-visible">
+            <div className="w-full lg:w-[65%] space-y-6 lg:overflow-y-auto lg:h-full lg:pr-4 pb-4 lg:pb-10 scrollbar-thin">
               
-              {/* --- CABEÇALHO EXCLUSIVO PARA O PDF (TIMBRADO LYPSYOS) --- */}
-              {/* Invisível na tela, visível apenas na impressão */}
-              <div className="hidden print:block border-b-2 border-slate-800 pb-6 mb-6 pt-4 px-8">
-                <div className="flex justify-between items-end">
+              <div className="bg-white/90 backdrop-blur p-4 lg:p-6 rounded-3xl shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] border border-slate-200 border-t-4 border-slate-900">
+                <h2 className="text-lg lg:text-xl font-black text-slate-900 mb-4 flex items-center gap-2">⚙️ Parâmetros do Orçamento</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2 lg:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700">Cliente</label>
+                    <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-orange-500 outline-none bg-white" placeholder="Nome da empresa" />
+                  </div>
                   <div>
-                    <div className="mb-1 text-xs font-black uppercase tracking-[0.35em] text-cyan-600">
-                      Lypsyos - Orçamento Técnico
-                    </div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">
-                      Geo<span className="text-cyan-600">Quote</span>
-                    </h1>
+                    <label className="block text-xs font-semibold text-slate-700">Máquina</label>
+                    <select value={maquinaSelecionada} onChange={(e) => { setMaquinaSelecionada(e.target.value); setProcesso(e.target.value); }} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-orange-500 outline-none">
+                      {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
+                        <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser CNC' : 'Plasma HD'}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="text-right">
-                    <h2 className="text-xl font-bold text-slate-800 uppercase">Orçamento Comercial</h2>
-                    <p className="text-sm text-slate-600 mt-1">
-                      Cliente: <span className="font-bold text-slate-900">{cliente || 'Consumidor Final'}</span>
-                    </p>
-                    <p className="text-sm text-slate-600 mt-1">
-                      Emissão: <b>{dataEmissao?.toLocaleDateString('pt-BR') || new Date().toLocaleDateString('pt-BR')}</b> | Validade: <b>{validadeOrcamento?.toLocaleDateString('pt-BR') || '7 dias'}</b>
-                    </p>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="block text-xs font-semibold text-slate-700">Material Base</label>
+                    <select value={materialSelecionado} onChange={(e) => selecionarMaterial(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-orange-500 outline-none">
+                      {materiaisDisponiveis.length === 0 ? <option value="">Cadastre um material</option> : materiaisDisponiveis.map((material) => <option key={material} value={material}>{material}</option>)}
+                    </select>
                   </div>
                 </div>
+                {parametroAtual && (
+                  <div className="mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs lg:text-sm text-orange-900 grid grid-cols-2 sm:grid-cols-3 lg:flex gap-3 lg:gap-4 shadow-sm">
+                    <span className="truncate"><b>Máquina:</b> {parametroAtual.maquina}</span>
+                    <span className="truncate"><b>R$/kg:</b> R$ {parametroAtual.precoKg.toFixed(2)}</span>
+                    <span className="truncate"><b>R$/Hora:</b> R$ {parametroAtual.valorHora.toFixed(2)}</span>
+                    <span className="truncate"><b>Vel:</b> {parametroAtual.velocidadeCorte} mm/m</span>
+                    <span className="col-span-2 sm:col-span-1 truncate"><b>Frete:</b> R$ {Number(frete).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Cabeçalho do Orçamento (Web) - Oculto na impressão com print:hidden */}
-                <div className="bg-slate-950 p-8 text-white flex justify-between items-start gap-6 print:hidden">
-                 <div>
-                    <div className="hidden print:block mb-4 text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
-                      Lypsyos - Orçamento Técnico
-                    </div>
-                    <h1 className="text-3xl font-black uppercase tracking-wider">
-                      Resumo de <span className="text-cyan-400">Produção</span>
-                    </h1>
-                    <p className="text-slate-400 mt-2 text-lg">
-                      Cliente: <span className="font-bold text-white">{cliente || 'Consumidor Final'}</span>
-                    </p>
-                    <p className="text-slate-400 text-sm mt-1">
-                      Máquina: <span className="bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded-full uppercase font-bold">{processo}</span>
-                    </p>
-                      <p className="text-slate-400 text-sm mt-1">
-                      Emissão: <span className="font-bold text-white">{dataEmissao?.toLocaleDateString('pt-BR')}</span> | Validade: <span className="font-bold text-white">{validadeOrcamento?.toLocaleDateString('pt-BR')}</span>
-                      </p>
-                 </div>
-                 
-                 <div className="flex gap-4">
-                    <button 
-                       onClick={() => setTelaAtual('formulario')} 
-                      className="bg-white/10 text-white px-5 py-3 rounded-full font-bold hover:bg-white/15 transition-all shadow-lg flex items-center gap-2 border border-white/10"
-                    >
-                       ← Nova Edição
-                    </button>
+              {/* INSERÇÃO DE PEÇAS E UPLOAD DE DXF */}
+              <div className="bg-white/90 backdrop-blur p-4 lg:p-6 rounded-3xl shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] border border-slate-200 border-t-4 border-orange-500">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b border-slate-200 pb-3 gap-2">
+                  <h2 className="text-lg lg:text-xl font-black text-slate-900">
+                    {editandoIndex !== null ? '✏️ Editando Peça' : 'Adicionar Nova Peça'}
+                  </h2>
+                  {editandoIndex !== null && (
+                    <button onClick={() => { setEditandoIndex(null); limparFormulario(); }} className="text-xs text-slate-500 hover:text-red-500 font-bold uppercase w-full sm:w-auto text-left sm:text-right">Cancelar Edição</button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                  
+                  <div className="xl:col-span-2 space-y-5">
                     
-                    <button 
-                       onClick={baixarPDF} 
-                       className="bg-gradient-to-r from-cyan-400 to-cyan-500 text-slate-950 px-5 py-3 rounded-full font-black hover:from-cyan-300 hover:to-cyan-400 transition-all shadow-lg shadow-cyan-500/25 flex items-center gap-2"
-                    >
-                       📄 Baixar PDF
-                    </button>
-                 </div>
-              </div>
+                    <div className={`border-2 border-dashed rounded-xl p-4 text-center transition-colors relative 
+                      ${dxfErro ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-slate-50'}`}>
+                        <input type="file" accept=".dxf" onChange={handleDxfUpload} disabled={isUploadingDxf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                        <div className="flex flex-col items-center justify-center space-y-1 lg:space-y-2">
+                          <svg className={`w-6 h-6 lg:w-8 lg:h-8 ${dxfErro ? 'text-red-500' : 'text-orange-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                          <span className={`text-xs lg:text-sm font-semibold truncate px-2 w-full ${dxfErro ? 'text-red-700' : 'text-slate-700'}`}>
+                              {isUploadingDxf ? 'Analisando...' : dxfFile ? dxfFile.name : 'Toque ou arraste um DXF'}
+                          </span>
+                        </div>
+                    </div>
 
-              {/* TOTAIS GLOBAIS (Cards Topo) */}
-              <div className="p-8 print:p-0 bg-slate-50 print:bg-white border-b border-slate-200 print:border-none print:break-inside-avoid">
-                 <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2 tracking-tight print:text-base print:border-b print:pb-2">
-                   📊 Totais Globais do Orçamento
-                </h3>
-                 <div className="grid grid-cols-2 md:grid-cols-7 print:grid-cols-7 gap-4 print:gap-2">
-                   <div className="bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none text-center">
-                      <p className="text-xs print:text-[10px] font-bold text-slate-500 uppercase">Total Peças</p>
-                      <p className="text-2xl print:text-lg font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.total_pecas}</p>
-                   </div>
-                   <div className="bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none text-center">
-                      <p className="text-xs print:text-[10px] font-bold text-slate-500 uppercase">Chapas Totais</p>
-                      <p className="text-2xl print:text-lg font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.chapas_totais}</p>
-                   </div>
-                   <div className="bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none text-center">
-                      <p className="text-xs print:text-[10px] font-bold text-slate-500 uppercase">Peso Total (Kg)</p>
-                      <p className="text-2xl print:text-lg font-black text-slate-900 mt-1">{resultadoOrcamento.totais_globais.peso_total_kg}</p>
-                   </div>
-                   <div className="bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none text-center">
-                      <p className="text-xs print:text-[10px] font-bold text-slate-500 uppercase">Tempo Máquina</p>
-                      <p className="text-2xl print:text-lg font-black text-slate-900 mt-1">
-                        {Math.floor(resultadoOrcamento.totais_globais.tempo_total_min / 60)}h {Math.round(resultadoOrcamento.totais_globais.tempo_total_min % 60)}m
-                      </p>
-                   </div>
-                   <div className="bg-cyan-50 print:bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-cyan-200 print:border-slate-300 shadow-sm print:shadow-none text-center">
-                     <p className="text-xs print:text-[10px] font-bold text-cyan-800 print:text-slate-600 uppercase">Custo Material</p>
-                     <p className="text-2xl print:text-lg font-black text-cyan-700 print:text-slate-900 mt-1">
-                       R$ {resultadoOrcamento.totais_globais.custo_material?.toFixed(2)}
-                     </p>
-                   </div>
-                   <div className="bg-sky-50 print:bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-sky-200 print:border-slate-300 shadow-sm print:shadow-none text-center">
-                     <p className="text-xs print:text-[10px] font-bold text-sky-800 print:text-slate-600 uppercase">Custo Máquina</p>
-                     <p className="text-2xl print:text-lg font-black text-sky-700 print:text-slate-900 mt-1">
-                       R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}
-                     </p>
-                   </div>
-                   <div className="bg-slate-950 print:bg-white print:p-2 p-4 rounded-2xl print:rounded-lg border border-slate-800 print:border-slate-900 shadow-sm print:shadow-none text-center">
-                     <p className="text-xs print:text-[10px] font-bold text-slate-300 print:text-slate-800 uppercase">Total Final</p>
-                     <p className="text-2xl print:text-lg font-black text-white print:text-slate-900 mt-1">
-                       R$ {resultadoOrcamento.totais_globais.custo_total?.toFixed(2)}
-                     </p>
-                   </div>
-                </div>
-              </div>
+                    {dxfImportado && (
+                      <div className="grid grid-cols-3 gap-2 text-[10px] lg:text-xs text-center">
+                        <div className="bg-slate-900 text-white rounded-xl p-2 shadow-sm"><p className="text-slate-400">Perímetro</p><p className="text-sm font-bold text-orange-400 truncate">{dxfPerimetroCorteMm.toFixed(2)}</p></div>
+                        <div className="bg-slate-900 text-white rounded-xl p-2 shadow-sm"><p className="text-slate-400">Área útil</p><p className="text-sm font-bold text-orange-400 truncate">{dxfAreaUtilMm2.toFixed(2)}</p></div>
+                        <div className="bg-slate-900 text-white rounded-xl p-2 shadow-sm"><p className="text-slate-400">Furos</p><p className="text-sm font-bold text-orange-400 truncate">{nFuros}</p></div>
+                      </div>
+                    )}
 
-              {/* CASCATA DE PRECIFICAÇÃO */}
-              <div className="px-8 pb-8 pt-2 print:p-0 print:mt-6 print:break-inside-avoid">
-                <div className="bg-white rounded-3xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none overflow-hidden print:overflow-visible">
-                  <div className="p-5 print:p-2 border-b border-slate-200 flex items-center justify-between">
-                    <h3 className="text-lg print:text-base font-black text-slate-900 tracking-tight">Cascata de Preço</h3>
-                    <span className="text-xs font-bold text-cyan-700 print:text-slate-600 bg-cyan-50 print:bg-transparent px-3 py-1 rounded-full">CP → TI → Bruto → Final</span>
+                    <form onSubmit={adicionarOuAtualizarPeca} className="space-y-4">
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Identificador</label>
+                          <input type="text" value={id} onChange={(e) => setId(e.target.value)} required className="mt-1 w-full border border-slate-300 rounded-xl p-2 text-sm focus:ring-orange-500 outline-none" placeholder="Ex: PC-01" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">QTD</label>
+                          <input type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} required min="1" className="mt-1 w-full border border-slate-300 rounded-xl p-2 text-sm focus:ring-orange-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Geometria</label>
+                          <select value={tipoPeca} onChange={(e) => setTipoPeca(e.target.value)} className="mt-1 w-full border border-slate-300 rounded-xl p-2 text-sm focus:ring-orange-500 outline-none">
+                              <option value="R">Retangular</option>
+                              <option value="Q">Quadrado</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="w-full">
+                        <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Espessura (mm)</label>
+                        <select value={espessuraSelecionada} onChange={(e) => setEspessuraSelecionada(e.target.value)} required disabled={espessurasDisponiveis.length === 0} className="mt-1 w-full border border-slate-300 rounded-xl p-2 text-sm focus:ring-orange-500 outline-none bg-white">
+                          {espessurasDisponiveis.length === 0 ? <option value="">Selecione material</option> : espessurasDisponiveis.map((esp) => <option key={esp} value={esp}>{esp} mm</option>)}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700">Dim A (X)</label>
+                          <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700">Dim B (Y)</label>
+                          <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                          <label className="block text-[10px] font-semibold text-slate-700">Dim C (Z)</label>
+                          <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" placeholder="Opc." />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700">Nº Furos</label>
+                          <input type="number" value={nFuros} onChange={(e) => setNFuros(e.target.value)} min="0" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-700">Ø Furo</label>
+                          <input type="number" value={diaFuro} onChange={(e) => setDiaFuro(e.target.value)} min="0" step="0.1" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                        </div>
+                      </div>
+
+                      <button type="submit" className="w-full text-white font-black py-3.5 rounded-full transition-all shadow-lg hover:-translate-y-0.5 bg-orange-500 hover:bg-orange-600 text-sm lg:text-base">
+                        {editandoIndex !== null ? '✓ Salvar Alterações' : '+ Adicionar Peça'}
+                      </button>
+                    </form>
                   </div>
-                  <div className="p-5 print:p-2 grid grid-cols-1 md:grid-cols-5 print:grid-cols-5 gap-4 print:gap-2 text-sm">
-                    <div className="rounded-2xl print:rounded-lg border border-cyan-200 print:border-slate-300 bg-cyan-50 print:bg-transparent p-4 print:p-2">
-                      <p className="text-xs font-bold text-cyan-800 print:text-slate-700 uppercase">Custo de Produção</p>
-                      <p className="text-xl print:text-lg font-black text-cyan-800 print:text-slate-900 mt-2">R$ {Number(resultadoOrcamento.totais_globais.custo_producao || 0).toFixed(2)}</p>
-                      <p className="text-xs print:text-[10px] text-cyan-900 print:text-slate-500 mt-2">Material + Máquina + Cons.</p>
-                    </div>
-                    <div className="rounded-2xl print:rounded-lg border border-amber-200 print:border-slate-300 bg-amber-50 print:bg-transparent p-4 print:p-2">
-                      <p className="text-xs font-bold text-amber-800 print:text-slate-700 uppercase">Taxas Incidentes</p>
-                      <p className="text-xl print:text-lg font-black text-amber-700 print:text-slate-900 mt-2">{Number(resultadoOrcamento.totais_globais.taxas_incidentes_percent || 0).toFixed(2)}%</p>
-                      <p className="text-sm print:text-xs font-semibold text-amber-800 print:text-slate-600 mt-1">R$ {Number(resultadoOrcamento.totais_globais.custo_tarifas || 0).toFixed(2)}</p>
-                    </div>
-                    <div className="rounded-2xl print:rounded-lg border border-sky-200 print:border-slate-300 bg-sky-50 print:bg-transparent p-4 print:p-2">
-                      <p className="text-xs font-bold text-sky-800 print:text-slate-700 uppercase">Preço Venda Bruto</p>
-                      <p className="text-xl print:text-lg font-black text-sky-700 print:text-slate-900 mt-2">R$ {Number(resultadoOrcamento.totais_globais.preco_venda_bruto || 0).toFixed(2)}</p>
-                      <p className="text-xs print:text-[10px] text-sky-900 print:text-slate-500 mt-2">CP / (1 - TI)</p>
-                    </div>
-                    <div className="rounded-2xl print:rounded-lg border border-violet-200 print:border-slate-300 bg-violet-50 print:bg-transparent p-4 print:p-2">
-                      <p className="text-xs font-bold text-violet-800 print:text-slate-700 uppercase">Acréscimos Finais</p>
-                      <p className="text-xl print:text-lg font-black text-violet-700 print:text-slate-900 mt-2">R$ {Number(resultadoOrcamento.totais_globais.acrescimos_finais || 0).toFixed(2)}</p>
-                      <p className="text-xs print:text-[10px] text-violet-900 print:text-slate-500 mt-2">Frete somado ao final</p>
-                    </div>
-                    <div className="rounded-2xl print:rounded-lg border border-slate-900 print:border-slate-400 bg-slate-950 print:bg-slate-100 p-4 print:p-2">
-                      <p className="text-xs font-bold text-slate-300 print:text-slate-700 uppercase">Preço Final</p>
-                      <p className="text-xl print:text-lg font-black text-white print:text-slate-900 mt-2">R$ {Number(resultadoOrcamento.totais_globais.custo_total || 0).toFixed(2)}</p>
-                      <p className="text-xs print:text-[10px] text-slate-300 print:text-slate-600 mt-2">Bruto + Frete</p>
-                    </div>
+
+                  <div className="xl:col-span-1 min-h-[200px] h-[250px] xl:h-full flex flex-col">
+                    {renderPreviewPeca()}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* DETALHAMENTO POR ESPESSURA (Tabela Padrão Mercado) */}
-                <div className="p-8 print:p-0 print:mt-6 print:break-inside-avoid">
-                 <h3 className="text-lg print:text-base font-black text-slate-800 mb-4 flex items-center gap-2 tracking-tight print:border-b print:pb-2">
-                   ⚙️ Necessidade de Materiais e Custo por Espessura
-                 </h3>
-                 {/* Ajuste crucial: remover overflow-x-auto na impressão */}
-                 <div className="overflow-x-auto print:overflow-visible rounded-2xl print:rounded-lg border border-slate-200 shadow-sm print:shadow-none bg-white">
-                    <table className="w-full text-left border-collapse print:text-[11px]">
-                       <thead>
-                        <tr className="bg-slate-950 text-white text-sm print:text-xs print:bg-slate-200 print:text-slate-900 uppercase tracking-wider">
-                             <th className="p-4 print:p-2 font-semibold text-center border-b-2 border-cyan-500 print:border-slate-400">Esp. (mm)</th>
-                             <th className="p-4 print:p-2 font-semibold border-b-2 border-cyan-500 print:border-slate-400">Qtd Peças</th>
-                             <th className="p-4 print:p-2 font-semibold text-center border-b-2 border-cyan-500 print:border-slate-400">Chapas (Qtd x Tam)</th>
-                             <th className="p-4 print:p-2 font-semibold border-b-2 border-cyan-500 print:border-slate-400">Tempo</th>
-                             <th className="p-4 print:p-2 font-semibold border-b-2 border-cyan-500 print:border-slate-400">Peso (Kg)</th>
-                          <th className="p-4 print:p-2 font-semibold text-right border-b-2 border-cyan-500 print:border-slate-400">Material R$</th>
-                          <th className="p-4 print:p-2 font-semibold text-right border-b-2 border-cyan-500 print:border-slate-400">Máquina R$</th>
-                          <th className="p-4 print:p-2 font-semibold text-right border-b-2 border-cyan-500 print:border-slate-400">Total R$</th>
-                          </tr>
-                       </thead>
-                       <tbody className="bg-white divide-y divide-slate-100 print:divide-slate-300">
-                          {resultadoOrcamento.detalhamento_espessuras.map((item, index) => (
-                             <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-4 print:p-2 font-black text-center text-slate-900 bg-slate-100 print:bg-transparent">{item.espessura.toFixed(2)}</td>
-                                <td className="p-4 print:p-2 font-medium text-slate-700">{item.qtd_pecas}</td>
-                                
-                                <td className="p-4 print:p-2 text-center">
-                                  <span className="bg-cyan-100 print:bg-transparent print:border print:border-slate-400 text-cyan-800 print:text-slate-800 font-bold px-3 py-1 rounded-full print:rounded text-sm print:text-[10px] block w-max mx-auto">
-                                    {item.chapas_necessarias} un
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 font-mono mt-1 block">
-                                    {item.dimensao_chapa}
-                                  </span>
-                                </td>
-                                
-                                <td className="p-4 print:p-2 font-mono text-slate-600 text-sm print:text-xs">
-                                  {Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m
-                                </td>
-                                <td className="p-4 print:p-2 font-medium text-slate-700">{item.peso_kg.toFixed(2)} Kg</td>
-                                  <td className="p-4 print:p-2 font-bold text-right text-slate-800">R$ {item.custo_material.toFixed(2)}</td>
-                                  <td className="p-4 print:p-2 font-bold text-right text-sky-700 print:text-slate-800">R$ {Number(item.custo_maquina || 0).toFixed(2)}</td>
-                                  <td className="p-4 print:p-2 font-black text-right text-cyan-700 print:text-slate-900">R$ {Number(item.custo_total || 0).toFixed(2)}</td>
-                             </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 </div>
+            {/* LADO DIREITO: LISTA LATERAL */}
+            <div className="w-full lg:w-[35%] h-[500px] lg:h-full flex flex-col bg-white/90 backdrop-blur p-4 lg:p-6 rounded-3xl shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] border border-slate-200 border-t-4 border-slate-900 shrink-0">
+              <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                <h2 className="text-base lg:text-lg font-black text-slate-900">Itens do Orçamento</h2>
+                <span className="bg-orange-100 text-orange-800 text-[10px] lg:text-xs font-bold px-2 py-1 rounded-full">{listaPecas.length} peças</span>
               </div>
 
-              {/* RODAPÉ DO PDF (Termos e Assinaturas) */}
-              <div className="hidden print:block mt-8 pt-6 border-t-2 border-slate-800 break-inside-avoid px-8 pb-8">
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                {listaPecas.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2 opacity-60">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                      <p className="text-xs font-medium">Lista vazia.</p>
+                  </div>
+                ) : (
+                  listaPecas.map((peca, index) => (
+                    <div key={index} className="border border-slate-200 p-3 rounded-2xl bg-white shadow-sm hover:border-orange-400 transition-all text-xs lg:text-sm">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <span className="font-bold text-slate-800 truncate block">{peca.id}</span>
+                          <div className="flex gap-1.5 mt-2">
+                            <button onClick={() => editarPeca(index)} className="text-[9px] lg:text-[10px] bg-slate-100 px-2 py-1.5 rounded-full font-bold">EDITAR</button>
+                            <button onClick={() => removerPeca(index)} className="text-[9px] lg:text-[10px] bg-red-50 text-red-600 px-2 py-1.5 rounded-full font-bold">REMOVER</button>
+                          </div>
+                        </div>
+                        <span className="text-[10px] lg:text-xs font-bold bg-slate-900 text-white px-2 py-1 rounded shrink-0">{peca.qtd} UN</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-y-1.5 border-t border-slate-100 pt-2 text-[10px] lg:text-xs text-slate-600">
+                        <p className="truncate">Material: <b className="text-slate-800">{peca.material}</b></p>
+                        <p>Esp.: <b className="text-slate-800">{peca.espessura}mm</b></p>
+                        <p>Dim: <b className="text-slate-800">{peca.dimA}x{peca.dimB}</b></p>
+                        <p>R$/Kg: <b className="text-slate-800">R${Number(peca.precoKgBase || 0).toFixed(2)}</b></p>
+                        <p className="col-span-2 text-orange-600 font-semibold text-right border-t border-orange-50 pt-1 mt-1">Peso Tot: <b>{peca.pesoTotal}kg</b></p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {listaPecas.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 mt-2 shrink-0">
+                  <button onClick={prepararProcessamento} className="w-full bg-slate-900 text-white py-3 lg:py-3.5 rounded-full font-black hover:bg-slate-800 text-sm">
+                    Processar Orçamento ➔
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TELA: DASHBOARD DE RESULTADOS (MODO TIMBRADO / PDF EXATO AO SEU PEDIDO) */}
+        {telaAtual === 'resultado' && resultadoOrcamento && (
+          <div className="absolute inset-0 p-4 lg:p-8 overflow-y-auto scrollbar-thin print:p-0 print:overflow-visible print:bg-white">
+            <div className="max-w-7xl mx-auto pb-10 print:max-w-none print:w-full">
+              
+              <div className="bg-white/90 backdrop-blur rounded-3xl shadow-xl border border-slate-200 border-t-8 border-orange-500 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-white relative">
+                
+                {/* --- CABEÇALHO PADRÃO DE PDF (TIMBRADO COMERCIAL) --- */}
+                <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 pt-2 px-8">
                   <div className="flex justify-between items-end">
-                      <div className="text-[10px] text-slate-500 w-1/2">
-                          <p className="font-bold text-slate-700 mb-1">Condições Gerais:</p>
+                    <div>
+                      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.35em] text-orange-500">
+                        Lypsyos - Orçamento Técnico
+                      </div>
+                      <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
+                        Geo<span className="text-orange-500">Quote</span>
+                      </h1>
+                    </div>
+                    <div className="text-right">
+                      <h2 className="text-lg font-bold text-slate-800 uppercase">Orçamento Comercial</h2>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Cliente: <span className="font-bold text-slate-900">{cliente || 'Consumidor Final'}</span>
+                      </p>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Emissão: <b>{dataEmissao?.toLocaleDateString('pt-BR')}</b> | Validade: <b>{validadeOrcamento?.toLocaleDateString('pt-BR')}</b>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cabeçalho Web (Oculto na impressão) */}
+                <div className="bg-slate-950 p-6 lg:p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 print:hidden">
+                  <div>
+                    <h1 className="text-2xl lg:text-3xl font-black uppercase tracking-wider">Resumo de <span className="text-orange-500">Produção</span></h1>
+                    <p className="text-slate-400 mt-2 text-sm lg:text-base">Cliente: <span className="font-bold text-white">{cliente || 'Consumidor Final'}</span></p>
+                    <div className="flex flex-wrap gap-3 mt-2 text-xs lg:text-sm text-slate-400">
+                      <span>MÁQ: <b className="text-orange-400">{processo}</b></span>
+                      <span>EMISSÃO: <b className="text-white">{dataEmissao?.toLocaleDateString('pt-BR')}</b></span>
+                    </div>
+                  </div>
+                  <div className="flex w-full md:w-auto gap-3">
+                    <button onClick={() => setTelaAtual('formulario')} className="flex-1 md:flex-none bg-white/10 px-4 py-2.5 lg:py-3 rounded-full font-bold text-xs lg:text-sm text-center border border-white/10">← Editar</button>
+                    <button onClick={baixarPDF} className="flex-1 md:flex-none bg-orange-500 text-white px-4 py-2.5 lg:py-3 rounded-full font-black text-xs lg:text-sm text-center shadow-lg">📄 PDF</button>
+                  </div>
+                </div>
+
+                {/* TOTAIS GLOBAIS (Apenas Peças, Chapas, Peso, Tempo e Custo Máquina) */}
+                <div className="p-4 lg:p-8 bg-slate-50 border-b border-slate-200 print:bg-white print:border-none print:p-4">
+                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 tracking-tight print:text-sm">📊 Totais Globais</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 xl:gap-4 print:grid-cols-5">
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                        <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Peças</p>
+                        <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.total_pecas}</p>
+                    </div>
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                        <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Chapas</p>
+                        <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.chapas_totais}</p>
+                    </div>
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                        <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Peso (Kg)</p>
+                        <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.peso_total_kg}</p>
+                    </div>
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                        <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Tempo</p>
+                        <p className="text-base xl:text-lg font-black text-slate-900 mt-1 truncate">
+                          {Math.floor(resultadoOrcamento.totais_globais.tempo_total_min / 60)}h {Math.round(resultadoOrcamento.totais_globais.tempo_total_min % 60)}m
+                        </p>
+                    </div>
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-orange-200 shadow-sm text-center flex flex-col justify-center col-span-2 sm:col-span-1 print:border-slate-300">
+                      <p className="text-[10px] lg:text-xs font-bold text-orange-800 uppercase print:text-slate-600">Custo Máquina R$</p>
+                      <p className="text-lg xl:text-xl font-black text-orange-700 mt-1 truncate print:text-slate-900">R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* DETALHAMENTO DA TABELA POR ESPESSURA (Apenas o necessário) */}
+                <div className="px-4 lg:px-8 pb-8 pt-6 border-t border-slate-100 print:px-4 print:pt-4">
+                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 print:text-sm">⚙️ Tabela por Espessura</h3>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white scrollbar-thin print:border-slate-300">
+                    <table className="w-full text-left min-w-[700px] print:min-w-0 print:w-full print:text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-950 text-white text-[10px] lg:text-xs uppercase print:bg-slate-200 print:text-slate-900">
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-slate-400">Esp. (mm)</th>
+                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Qtd</th>
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-slate-400">Chapas (Qtd x Tam)</th>
+                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Tempo</th>
+                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Peso</th>
+                            <th className="p-3 text-right border-b-2 border-orange-500 print:border-slate-400">Custo Máquina R$</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-100 text-xs lg:text-sm print:divide-slate-300">
+                          {resultadoOrcamento.detalhamento_espessuras.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-3 font-black text-center text-slate-900 bg-slate-50 print:bg-transparent">{item.espessura.toFixed(2)}</td>
+                                <td className="p-3 font-medium text-slate-700">{item.qtd_pecas}</td>
+                                <td className="p-3 text-center">
+                                  <span className="bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded text-[10px] lg:text-xs block w-max mx-auto border border-orange-200 print:bg-transparent print:border-slate-400 print:text-slate-800">{item.chapas_necessarias} un</span>
+                                  <span className="text-[9px] lg:text-[10px] text-slate-500 font-mono mt-1 block">{item.dimensao_chapa}</span>
+                                </td>
+                                <td className="p-3 font-mono text-slate-600 text-[10px] lg:text-xs">{Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m</td>
+                                <td className="p-3 font-medium text-slate-700">{item.peso_kg.toFixed(2)} Kg</td>
+                                <td className="p-3 font-black text-right text-orange-600 truncate print:text-slate-900">R$ {Number(item.custo_maquina || 0).toFixed(2)}</td>
+                              </tr>
+                          ))}
+                        </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* --- BLOCO DE ASSINATURA E CONDIÇÕES GERAIS (EXATAMENTE COMO NA SUA REFERÊNCIA) --- */}
+                <div className="hidden print:block mt-6 pt-4 border-t-2 border-slate-800 break-inside-avoid px-8 pb-6">
+                  <div className="flex justify-between items-end gap-6">
+                      <div className="text-[10px] text-slate-600 w-3/5 space-y-1">
+                          <p className="font-bold text-slate-800">Condições Gerais:</p>
                           <p>1. Os valores orçados referem-se estritamente às geometrias fornecidas.</p>
                           <p>2. Variações na espessura comercial da chapa estão sujeitas à tolerância da usina.</p>
                           <p>3. Prazo de entrega a combinar após aprovação deste orçamento.</p>
                       </div>
-                      <div className="w-1/3 text-center border-t border-slate-400 pt-2">
-                          <p className="text-xs font-bold text-slate-900">Depto. Comercial - Lypsyos</p>
-                          <p className="text-[10px] text-slate-500">Assinatura / Carimbo</p>
+                      <div className="w-2/5 text-center">
+                          <div className="border-t border-slate-500 pt-2 mx-auto">
+                              <p className="text-xs font-bold text-slate-900">Depto. Comercial - Lypsyos</p>
+                              <p className="text-[10px] text-slate-500">Assinatura / Carimbo</p>
+                          </div>
                       </div>
                   </div>
-              </div>
-              
-           </div>
-        </div>
-      )}
+                </div>
 
-      {/* MODAL DE CONFIGURAÇÃO DE CHAPAS (Oculto na impressão devido a ser renderizado condicionalmente) */}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* MODAL DE CONFIGURAÇÃO DE CHAPAS */}
       {isModalChapasOpen && (
-        <div className="fixed inset-0 bg-slate-900 bg-opacity-80 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.4)] w-full max-w-lg overflow-hidden border border-slate-200">
-            <div className="bg-slate-900 p-5 border-b-4 border-cyan-500">
-              <h3 className="text-xl font-bold text-white uppercase tracking-wide">📐 Definição de Chapas</h3>
-              <p className="text-slate-400 text-sm mt-1">Informe a dimensão do material por espessura</p>
+        <div className="fixed inset-0 bg-slate-950 bg-opacity-90 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-[0_24px_80px_-35px_rgba(249,115,22,0.3)] w-full max-w-lg overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-950 p-4 lg:p-5 border-b-4 border-orange-500 shrink-0">
+              <h3 className="text-lg lg:text-xl font-bold text-white uppercase">📐 Dimensões de Chapa</h3>
             </div>
             
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+            <div className="p-4 lg:p-6 overflow-y-auto scrollbar-thin space-y-3">
               {Object.keys(chapasConfig).map(esp => (
-                <div key={esp} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex items-center justify-between gap-4">
-                  <div className="bg-slate-800 text-white font-black text-lg h-12 w-16 flex items-center justify-center rounded">
+                <div key={esp} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between gap-3">
+                  <div className="bg-slate-900 text-orange-400 font-black text-base lg:text-lg h-10 w-12 lg:h-12 lg:w-16 flex items-center justify-center rounded shrink-0">
                     {esp}
                   </div>
-                  <div className="flex-1 grid grid-cols-2 gap-4">
+                  <div className="flex-1 grid grid-cols-2 gap-2 lg:gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase">Largura (mm)</label>
-                      <input 
-                        type="number" 
-                        value={chapasConfig[esp].largura} 
-                        onChange={(e) => handleChapaChange(esp, 'largura', e.target.value)}
-                        className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
-                      />
+                      <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Largura</label>
+                      <input type="number" value={chapasConfig[esp].largura} onChange={(e) => handleChapaChange(esp, 'largura', e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-orange-500 outline-none"/>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase">Comp. (mm)</label>
-                      <input 
-                        type="number" 
-                        value={chapasConfig[esp].comprimento} 
-                        onChange={(e) => handleChapaChange(esp, 'comprimento', e.target.value)}
-                        className="mt-1 w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-cyan-500 outline-none"
-                      />
+                      <label className="block text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Comp.</label>
+                      <input type="number" value={chapasConfig[esp].comprimento} onChange={(e) => handleChapaChange(esp, 'comprimento', e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-orange-500 outline-none"/>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="p-5 bg-slate-100 flex justify-end gap-3 border-t border-slate-200">
-              <button onClick={() => setIsModalChapasOpen(false)} className="px-5 py-3 font-bold text-slate-600 hover:text-slate-800 transition-all rounded-full hover:bg-white">
-                Cancelar
-              </button>
-              <button onClick={handleSalvar} className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-6 py-3 rounded-full font-black shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center hover:-translate-y-0.5">
-                Confirmar e Processar ➔
-              </button>
+            <div className="p-4 bg-slate-100 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-200 shrink-0">
+              <button onClick={() => setIsModalChapasOpen(false)} className="w-full sm:w-auto px-5 py-3 font-bold text-slate-600 rounded-full hover:bg-slate-200 text-sm">Cancelar</button>
+              <button onClick={handleSalvar} className="w-full sm:w-auto bg-orange-500 text-white px-6 py-3 rounded-full font-black shadow-lg hover:bg-orange-600 text-sm">Processar Orçamento ➔</button>
             </div>
           </div>
         </div>
