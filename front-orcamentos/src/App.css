@@ -86,3 +86,23 @@ body {
   max-height: 12rem; /* h-48 */
   filter: drop-shadow(0 25px 25px rgb(0 0 0 / 0.15));
 }
+/* --- CONFIGURAÇÃO DE IMPRESSÃO B2B INDUSTRIAL (PDF) --- */
+@media print {
+  /* Define o tamanho da folha A4 e zera as margens nativas do navegador */
+  @page {
+    size: A4 portrait; /* Ou landscape, caso prefira deitado, mas retrato encaixa melhor o bloco técnico */
+    margin: 8mm; /* Margem de segurança exata para impressoras industriais/PDF */
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Força o container principal a ocupar exatamente 100% sem transbordar */
+  .print\:w-full {
+    width: 100% !important;
+  }
+}

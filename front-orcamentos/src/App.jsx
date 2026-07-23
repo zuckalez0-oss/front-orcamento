@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, Fragment } from 'react';
 
 const DEFAULT_PARAMETROS_MATERIAIS = [
   { id: 'laser-aco-carbono-1-50', maquina: 'LASER', material: 'Aço Carbono', espessura: 1.50, precoKg: 8.50, velocidadeCorte: 21250, valorHora: 180.00 },
@@ -42,9 +43,9 @@ function App() {
   const [dimC, setDimC] = useState('');
   
   // ESTADOS DE FURAÇÃO
-  const [nFuros, setNFuros] = useState(0);
-  const [diaFuro, setDiaFuro] = useState(0);
-  const [furoPadraoCantos, setFuroPadraoCantos] = useState(false);
+  const [tipoFuro, setTipoFuro] = useState('manual');
+  const [nFuros, setNFuros] = useState(''); 
+  const [diaFuro, setDiaFuro] = useState('');
   const [furoOffsetX, setFuroOffsetX] = useState('');
   const [furoOffsetY, setFuroOffsetY] = useState('');
 
@@ -236,8 +237,8 @@ function App() {
 
       setDimA(dados.dimA);
       setDimB(dados.dimB);
-      setNFuros(dados.nFuros || 0);  
-      setDiaFuro(dados.diaFuro || 0);  
+      setNFuros(dados.nFuros || '');  
+      setDiaFuro(dados.diaFuro || '');  
       setId(file.name.replace('.dxf', ''));
       setDxfPreviewSvg(dados.svgMarkup);
       setDxfPerimetroCorteMm(Number(dados.perimetroCorteMm || 0));
@@ -283,11 +284,11 @@ function App() {
       perimetroCorteMm,
       areaUtilMm2: areaBaseMm2,
       dxfImportado,
+      tipoFuro,
       nFuros: parseInt(nFuros || 0),
       diaFuro: Number(diaFuro) || 0,
-      furoPadraoCantos,
-      furoOffsetX: Number(furoOffsetX) || 0,
-      furoOffsetY: Number(furoOffsetY) || 0,
+      furoOffsetX: tipoFuro !== 'manual' ? (Number(furoOffsetX) || 0) : 0,
+      furoOffsetY: tipoFuro !== 'manual' ? (Number(furoOffsetY) || 0) : 0,
       pesoUnitario: pesoUnitario.toFixed(2),
       pesoTotal: pesoTotal.toFixed(2)
     };
@@ -306,7 +307,7 @@ function App() {
 
   const limparFormulario = () => {
     setId(''); setDimA(''); setDimB(''); setDimC(''); setQtd('');
-    setNFuros(0); setDiaFuro(0); setFuroPadraoCantos(false); setFuroOffsetX(''); setFuroOffsetY('');
+    setNFuros(''); setDiaFuro(''); setTipoFuro('manual'); setFuroOffsetX(''); setFuroOffsetY('');
     setDxfFile(null); setDxfPreviewSvg(null); setDxfErro(null);
     setDxfImportado(false);
     setDxfPerimetroCorteMm(0);
@@ -367,7 +368,7 @@ function App() {
     setMaterialSelecionado(peca.material || '');
     setEspessuraSelecionada(Number(peca.espessura).toFixed(2));
     setDimA(peca.dimA); setDimB(peca.dimB); setDimC(peca.dimC); setNFuros(peca.nFuros); setDiaFuro(peca.diaFuro);
-    setFuroPadraoCantos(peca.furoPadraoCantos); setFuroOffsetX(peca.furoOffsetX); setFuroOffsetY(peca.furoOffsetY);
+    setTipoFuro(peca.tipoFuro || 'manual'); setFuroOffsetX(peca.furoOffsetX); setFuroOffsetY(peca.furoOffsetY);
     setEditandoIndex(index);
   };
 
@@ -407,6 +408,7 @@ function App() {
   };
 
   const renderPreviewPeca = () => {
+    // 1) Se estiver upando arquivo
     if (isUploadingDxf) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1626] rounded-lg p-4 relative overflow-hidden border border-slate-700 shadow-inner min-h-[250px]">
@@ -416,6 +418,7 @@ function App() {
       );
     }
 
+    // 2) Se o DXF foi lido com sucesso (prioriza o SVG importado)
     if (dxfPreviewSvg) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-[#0d1626] rounded-lg p-4 relative overflow-hidden border border-slate-700 shadow-inner min-h-[250px]">
@@ -431,38 +434,84 @@ function App() {
       );
     }
 
+    // 3) Criação vetorial manual/automática baseada em dimensões
     const w = parseFloat(dimA) || (tipoPeca === 'Q' ? 100 : 200);
     const h = parseFloat(dimB) || (tipoPeca === 'Q' ? w : 100);
-    const furos = parseInt(nFuros) || 0;
-    const raioFuro = (parseFloat(diaFuro) || 0) / 2;
-    const offX = parseFloat(furoOffsetX) || 10;
-    const offY = parseFloat(furoOffsetY) || 10;
+
+    // Calcula um respiro (padding) de 15% para a peça não encostar nas bordas do SVG
+    const maxDim = Math.max(w, h);
+    const padding = maxDim * 0.15; 
+    const viewBox = `-${padding} -${padding} ${w + padding * 2} ${h + padding * 2}`;
+    
+    // Variáveis da furação
+    const diam = Number(diaFuro) || 0;
+    const r = diam / 2;
+    const ox = Number(furoOffsetX) || 0;
+    const oy = Number(furoOffsetY) || 0;
+
+    let furosSvg = [];
+
+    // Lógica para desenhar os furos baseada no Tipo
+    if (tipoFuro.startsWith('auto') && diam > 0 && ox > 0 && oy > 0) {
+      furosSvg.push({ cx: ox, cy: oy });             // Superior Esquerdo
+      furosSvg.push({ cx: w - ox, cy: oy });         // Superior Direito
+      furosSvg.push({ cx: w - ox, cy: h - oy });     // Inferior Direito
+      furosSvg.push({ cx: ox, cy: h - oy });         // Inferior Esquerdo
+
+      if (tipoFuro === 'auto_6' || tipoFuro === 'auto_8') {
+        furosSvg.push({ cx: w / 2, cy: oy });        // Meio Superior
+        furosSvg.push({ cx: w / 2, cy: h - oy });    // Meio Inferior
+      }
+
+      if (tipoFuro === 'auto_8') {
+        furosSvg.push({ cx: ox, cy: h / 2 });        // Meio Esquerda
+        furosSvg.push({ cx: w - ox, cy: h / 2 });    // Meio Direita
+      }
+    } else if (tipoFuro === 'manual' && Number(nFuros) > 0 && diam > 0) {
+      // Distribui furos alinhados no meio se forem até 5
+      const n = Number(nFuros);
+      if (n <= 5) {
+        for (let i = 0; i < n; i++) {
+          furosSvg.push({ cx: (w / (n + 1)) * (i + 1), cy: h / 2 });
+        }
+      }
+    }
+
+    const strokeW = maxDim * 0.005 > 1 ? maxDim * 0.005 : 1;
 
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#0A0A0A] rounded-lg p-4 relative overflow-hidden border border-slate-800 shadow-inner min-h-[250px]">
         <span className="absolute top-2 left-2 text-xs font-mono text-slate-500">Preview Geométrico</span>
         
-        <svg viewBox={`0 0 ${w + 40} ${h + 40}`} className="w-full h-full max-h-48 drop-shadow-2xl">
-          <rect x="20" y="20" width={w} height={h} fill="none" stroke="#F97316" strokeWidth="2" rx="2" strokeDasharray="4 2" />
-          {furos > 0 && (
-            furoPadraoCantos && furos === 4 ? (
-              <>
-                <circle cx={20 + offX} cy={20 + offY} r={raioFuro} fill="#F97316" />
-                <circle cx={20 + w - offX} cy={20 + offY} r={raioFuro} fill="#F97316" />
-                <circle cx={20 + offX} cy={20 + h - offY} r={raioFuro} fill="#F97316" />
-                <circle cx={20 + w - offX} cy={20 + h - offY} r={raioFuro} fill="#F97316" />
-              </>
-            ) : (
-              furos <= 5 ? (
-                Array.from({ length: furos }).map((_, i) => (
-                  <circle key={i} cx={20 + (w / (furos + 1)) * (i + 1)} cy={20 + h / 2} r={raioFuro} fill="#F97316" />
-                ))
-              ) : (
-                <text x={20 + w/2} y={20 + h/2} textAnchor="middle" fill="#F97316" fontSize={Math.min(w, h) * 0.2}>+{furos} Furos</text>
-              )
-            )
+        <svg viewBox={viewBox} className="w-full h-full max-h-48 drop-shadow-2xl">
+          <rect 
+            x="0" 
+            y="0" 
+            width={w} 
+            height={h} 
+            fill="none" 
+            stroke="#F97316" 
+            strokeWidth={strokeW} 
+            strokeDasharray={strokeW * 4} 
+          />
+          
+          {furosSvg.map((furo, index) => (
+            <circle 
+              key={index} 
+              cx={furo.cx} 
+              cy={furo.cy} 
+              r={r} 
+              fill="#F97316" 
+            />
+          ))}
+
+          {tipoFuro === 'manual' && Number(nFuros) > 5 && diam > 0 && (
+            <text x={w/2} y={h/2} textAnchor="middle" dominantBaseline="middle" fill="#F97316" fontSize={maxDim * 0.15}>
+              +{nFuros} Furos
+            </text>
           )}
         </svg>
+
         <div className="mt-2 text-center text-xs text-orange-500 font-mono">
           Eixos: X={w}mm | Y={h}mm
         </div>
@@ -474,27 +523,24 @@ function App() {
     <div className="h-screen flex flex-col bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.1),_transparent_40%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] font-sans text-slate-900 overflow-hidden">
       
       {/* 🚀 HEADER / NAVBAR */}
-<header className="bg-slate-950/95 backdrop-blur border-b border-orange-500/30 shadow-[0_12px_40px_-20px_rgba(15,23,42,0.9)] px-4 lg:px-8 py-3 lg:py-4 flex flex-col sm:flex-row justify-between items-center shrink-0 z-50 gap-3 print:hidden">
-  <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
-    
-    {/* 👇 AQUI ESTÁ A SUBSTITUIÇÃO DO LOGO */}
-    <img 
-      src="/logo-geoquote.svg" 
-      alt="GeoQuote Logo" 
-      className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-cover shadow-lg ring-1 ring-orange-400/30 shrink-0" 
-    />
-
-    <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white uppercase">
-      Geo<span className="text-orange-500">Quote</span>
-    </h1>
-  </div>
-  
-  <div className="flex flex-wrap items-center justify-center gap-2">
-    <button onClick={() => setTelaAtual('formulario')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Orçamento</button>
-    <button onClick={() => setTelaAtual('parametrizacao')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Parâmetros Globais</button>
-    <span className="hidden sm:inline-block text-white font-bold tracking-widest uppercase text-[10px] lg:text-xs bg-slate-800 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full border border-slate-700">Lypsyos</span>
-  </div>
-</header>
+      <header className="bg-slate-950/95 backdrop-blur border-b border-orange-500/30 shadow-[0_12px_40px_-20px_rgba(15,23,42,0.9)] px-4 lg:px-8 py-3 lg:py-4 flex flex-col sm:flex-row justify-between items-center shrink-0 z-50 gap-3 print:hidden">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
+          <img 
+            src="/logo-geoquote.svg" 
+            alt="GeoQuote Logo" 
+            className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl object-cover shadow-lg ring-1 ring-orange-400/30 shrink-0" 
+          />
+          <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white uppercase">
+            Geo<span className="text-orange-500">Quote</span>
+          </h1>
+        </div>
+        
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button onClick={() => setTelaAtual('formulario')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Orçamento</button>
+          <button onClick={() => setTelaAtual('parametrizacao')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Parâmetros Globais</button>
+          <span className="hidden sm:inline-block text-white font-bold tracking-widest uppercase text-[10px] lg:text-xs bg-slate-800 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full border border-slate-700">Lypsyos</span>
+        </div>
+      </header>
 
       {/* ÁREA PRINCIPAL */}
       <main className="flex-1 relative overflow-hidden">
@@ -734,26 +780,68 @@ function App() {
                         </select>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700">Dim A (X)</label>
-                          <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                      <div className="flex flex-col gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        {/* LINHA 1: Dimensões da Peça */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-700">Dim A (X)</label>
+                            <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-700">Dim B (Y)</label>
+                            <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                          </div>
+                          <div className="col-span-2 sm:col-span-1">
+                            <label className="block text-[10px] font-semibold text-slate-700">Dim C (Z)</label>
+                            <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" placeholder="Opc." />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700">Dim B (Y)</label>
-                          <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <label className="block text-[10px] font-semibold text-slate-700">Dim C (Z)</label>
-                          <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" placeholder="Opc." />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700">Nº Furos</label>
-                          <input type="number" value={nFuros} onChange={(e) => setNFuros(e.target.value)} min="0" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-700">Ø Furo</label>
-                          <input type="number" value={diaFuro} onChange={(e) => setDiaFuro(e.target.value)} min="0" step="0.1" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+
+                        {/* LINHA 2: Configurações de Furação */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-200 pt-3">
+                          <div className="col-span-2 sm:col-span-1">
+                            <label className="block text-[10px] font-semibold text-slate-700">Tipo de Furo</label>
+                            <select 
+                              value={tipoFuro} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTipoFuro(val);
+                                if (val === 'auto_4') setNFuros('4');
+                                else if (val === 'auto_6') setNFuros('6');
+                                else if (val === 'auto_8') setNFuros('8');
+                                else setNFuros('');
+                              }} 
+                              className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white focus:ring-orange-500"
+                            >
+                              <option value="manual">Manual</option>
+                              <option value="auto_4">Automático (4 Furos)</option>
+                              <option value="auto_6">Automático (6 Furos)</option>
+                              <option value="auto_8">Automático (8 Furos)</option>
+                            </select>
+                          </div>
+
+                          {tipoFuro === 'manual' ? (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-700">Nº Furos</label>
+                              <input type="number" value={nFuros} onChange={(e) => setNFuros(e.target.value)} min="0" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-700">Offset X (mm)</label>
+                                <input type="number" value={furoOffsetX} onChange={(e) => setFuroOffsetX(e.target.value)} required min="0" className="mt-1 w-full border border-orange-300 bg-orange-50 rounded p-2 text-sm outline-none" placeholder="Ex: 35" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-700">Offset Y (mm)</label>
+                                <input type="number" value={furoOffsetY} onChange={(e) => setFuroOffsetY(e.target.value)} required min="0" className="mt-1 w-full border border-orange-300 bg-orange-50 rounded p-2 text-sm outline-none" placeholder="Ex: 40" />
+                              </div>
+                            </>
+                          )}
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-700">Ø Furo</label>
+                            <input type="number" value={diaFuro} onChange={(e) => setDiaFuro(e.target.value)} min="0" step="0.1" className="mt-1 w-full border border-slate-300 rounded p-2 text-sm outline-none bg-white" />
+                          </div>
                         </div>
                       </div>
 
@@ -819,37 +907,16 @@ function App() {
           </div>
         )}
 
-        {/* TELA: DASHBOARD DE RESULTADOS (MODO TIMBRADO / PDF EXATO AO SEU PEDIDO) */}
+        {/* TELA: DASHBOARD DE RESULTADOS */}
         {telaAtual === 'resultado' && resultadoOrcamento && (
-          <div className="absolute inset-0 p-4 lg:p-8 overflow-y-auto scrollbar-thin print:p-0 print:overflow-visible print:bg-white">
-            <div className="max-w-7xl mx-auto pb-10 print:max-w-none print:w-full">
+          <div className="absolute inset-0 p-4 lg:p-8 overflow-y-auto scrollbar-thin print:p-0 print:overflow-visible print:bg-white print:font-sans">
+            <div className="max-w-7xl mx-auto pb-10 print:max-w-none print:w-full print:m-0 print:p-2">
               
-              <div className="bg-white/90 backdrop-blur rounded-3xl shadow-xl border border-slate-200 border-t-8 border-orange-500 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-white relative">
+              <div className="bg-white/90 backdrop-blur rounded-3xl shadow-xl border border-slate-200 border-t-8 border-orange-500 overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-white relative print:text-[10px]">
                 
-                {/* --- CABEÇALHO PADRÃO DE PDF (TIMBRADO COMERCIAL) --- */}
-                <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 pt-2 px-8">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.35em] text-orange-500">
-                        Lypsyos - Orçamento Técnico
-                      </div>
-                      <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">
-                        Geo<span className="text-orange-500">Quote</span>
-                      </h1>
-                    </div>
-                    <div className="text-right">
-                      <h2 className="text-lg font-bold text-slate-800 uppercase">Orçamento Comercial</h2>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        Cliente: <span className="font-bold text-slate-900">{cliente || 'Consumidor Final'}</span>
-                      </p>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        Emissão: <b>{dataEmissao?.toLocaleDateString('pt-BR')}</b> | Validade: <b>{validadeOrcamento?.toLocaleDateString('pt-BR')}</b>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cabeçalho Web (Oculto na impressão) */}
+                {/* ========================================== */}
+                {/* CABEÇALHO - VERSÃO WEB (Oculto na Impressão) */}
+                {/* ========================================== */}
                 <div className="bg-slate-950 p-6 lg:p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 print:hidden">
                   <div>
                     <h1 className="text-2xl lg:text-3xl font-black uppercase tracking-wider">Resumo de <span className="text-orange-500">Produção</span></h1>
@@ -861,91 +928,228 @@ function App() {
                   </div>
                   <div className="flex w-full md:w-auto gap-3">
                     <button onClick={() => setTelaAtual('formulario')} className="flex-1 md:flex-none bg-white/10 px-4 py-2.5 lg:py-3 rounded-full font-bold text-xs lg:text-sm text-center border border-white/10">← Editar</button>
-                    <button onClick={baixarPDF} className="flex-1 md:flex-none bg-orange-500 text-white px-4 py-2.5 lg:py-3 rounded-full font-black text-xs lg:text-sm text-center shadow-lg">📄 PDF</button>
+                    <button onClick={baixarPDF} className="flex-1 md:flex-none bg-orange-500 text-white px-4 py-2.5 lg:py-3 rounded-full font-black text-xs lg:text-sm text-center shadow-lg hover:bg-orange-600 transition-colors">📄 Gerar PDF Técnico</button>
                   </div>
                 </div>
 
-                {/* TOTAIS GLOBAIS (Apenas Peças, Chapas, Peso, Tempo e Custo Máquina) */}
-                <div className="p-4 lg:p-8 bg-slate-50 border-b border-slate-200 print:bg-white print:border-none print:p-4">
-                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 tracking-tight print:text-sm">📊 Totais Globais</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 xl:gap-4 print:grid-cols-5">
-                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                {/* ========================================== */}
+                {/* CABEÇALHO - VERSÃO PDF B2B (Visível só na Impressão) */}
+                {/* ========================================== */}
+                <div className="hidden print:flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4 pt-2">
+                  <div className="flex flex-col">
+                    <h1 className="text-2xl font-black tracking-tighter text-slate-900 uppercase leading-none mb-1">
+                      Lypsyos
+                    </h1>
+                    <h2 className="text-[9px] font-bold uppercase tracking-widest text-slate-600">
+                      Consultoria & Orçamento Técnico
+                    </h2>
+                  </div>
+                  <div className="text-right text-[10px] text-slate-900">
+                    <table className="text-right ml-auto">
+                      <tbody>
+                        <tr><td className="pr-2 font-bold uppercase text-slate-600">Orçamento:</td><td className="font-black">{String(Math.floor(Math.random() * 9000) + 1000)}</td></tr>
+                        <tr><td className="pr-2 font-bold uppercase text-slate-600">Máquina:</td><td className="font-black uppercase">{processo}</td></tr>
+                        <tr><td className="pr-2 font-bold uppercase text-slate-600">Cliente:</td><td className="font-black uppercase">{cliente || 'CONSUMIDOR FINAL'}</td></tr>
+                        <tr><td className="pr-2 font-bold uppercase text-slate-600">Emissão:</td><td className="font-black">{dataEmissao?.toLocaleDateString('pt-BR')}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* ========================================== */}
+                {/* TOTAIS GLOBAIS - VERSÃO WEB */}
+                {/* ========================================== */}
+                <div className="print:hidden p-4 lg:p-8 bg-slate-50 border-b border-slate-200">
+                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 tracking-tight">📊 Totais Globais</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 xl:gap-4">
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center">
                         <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Peças</p>
                         <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.total_pecas}</p>
                     </div>
-                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center">
                         <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Chapas</p>
                         <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.chapas_totais}</p>
                     </div>
-                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center">
                         <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Peso (Kg)</p>
                         <p className="text-lg xl:text-xl font-black text-slate-900 mt-1 truncate">{resultadoOrcamento.totais_globais.peso_total_kg}</p>
                     </div>
-                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center print:border-slate-300">
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-slate-200 shadow-sm text-center flex flex-col justify-center">
                         <p className="text-[10px] lg:text-xs font-bold text-slate-500 uppercase">Tempo</p>
                         <p className="text-base xl:text-lg font-black text-slate-900 mt-1 truncate">
                           {Math.floor(resultadoOrcamento.totais_globais.tempo_total_min / 60)}h {Math.round(resultadoOrcamento.totais_globais.tempo_total_min % 60)}m
                         </p>
                     </div>
-                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-orange-200 shadow-sm text-center flex flex-col justify-center col-span-2 sm:col-span-1 print:border-slate-300">
-                      <p className="text-[10px] lg:text-xs font-bold text-orange-800 uppercase print:text-slate-600">Custo Máquina R$</p>
-                      <p className="text-lg xl:text-xl font-black text-orange-700 mt-1 truncate print:text-slate-900">R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}</p>
+                    <div className="bg-white p-3 lg:p-4 rounded-xl border border-orange-200 shadow-sm text-center flex flex-col justify-center col-span-2 sm:col-span-1">
+                      <p className="text-[10px] lg:text-xs font-bold text-orange-800 uppercase">Custo Máquina R$</p>
+                      <p className="text-lg xl:text-xl font-black text-orange-700 mt-1 truncate">R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* DETALHAMENTO DA TABELA POR ESPESSURA (Apenas o necessário) */}
-                <div className="px-4 lg:px-8 pb-8 pt-6 border-t border-slate-100 print:px-4 print:pt-4">
-                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 print:text-sm">⚙️ Tabela por Espessura</h3>
-                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white scrollbar-thin print:border-slate-300">
-                    <table className="w-full text-left min-w-[700px] print:min-w-0 print:w-full print:text-[11px]">
+                {/* ========================================== */}
+                {/* TOTAIS GLOBAIS - VERSÃO PDF B2B (Grid Quadrado) */}
+                {/* ========================================== */}
+                <div className="hidden print:block mb-6 border-2 border-slate-900">
+                    <div className="bg-slate-900 text-white text-[9px] font-bold uppercase p-1.5 tracking-wider">
+                        Resumo de Custos e Parâmetros Técnicos para uso comercial
+                    </div>
+                    <div className="grid grid-cols-4 text-center divide-x-2 divide-slate-300 bg-slate-100">
+                        <div className="p-2 border-b-2 border-slate-300">
+                            <p className="text-[9px] text-slate-600 uppercase font-bold mb-1">Tempo Total Estimado</p>
+                            <p className="text-xs font-black text-slate-900">
+                              {Math.floor(resultadoOrcamento.totais_globais.tempo_total_min / 60)}h {Math.round(resultadoOrcamento.totais_globais.tempo_total_min % 60)}m
+                            </p>
+                        </div>
+                        <div className="p-2 border-b-2 border-slate-300">
+                            <p className="text-[9px] text-slate-600 uppercase font-bold mb-1">Peso Total Estimado (KG)</p>
+                            <p className="text-xs font-black text-slate-900">{resultadoOrcamento.totais_globais.peso_total_kg} kg</p>
+                        </div>
+                        <div className="p-2 border-b-2 border-slate-300">
+                            <p className="text-[9px] text-slate-600 uppercase font-bold mb-1">Chapas Utilizadas (Qtd)</p>
+                            <p className="text-xs font-black text-slate-900">{resultadoOrcamento.totais_globais.chapas_totais}</p>
+                        </div>
+                        <div className="p-2 border-b-2 border-slate-300 bg-slate-200">
+                            <p className="text-[9px] text-slate-800 uppercase font-bold mb-1">Valor Venda Bruto</p>
+                            <p className="text-sm font-black text-slate-900">R$ {resultadoOrcamento.totais_globais.preco_venda_bruto?.toFixed(2)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ========================================== */}
+                {/* TABELA DE PEÇAS - UNIFICADA (Estilos mistos Tailwind) */}
+                {/* ========================================== */}
+                <div className="px-4 lg:px-8 pb-8 pt-6 print:px-0 print:pt-0">
+                  <h3 className="text-base lg:text-lg font-black text-slate-800 mb-4 print:hidden">⚙️ Relação de Peças e Totais por Espessura</h3>
+                  
+                  {/* Título Tabela no PDF */}
+                  <div className="hidden print:block bg-slate-900 text-white text-[9px] font-bold uppercase p-1.5 tracking-wider border-2 border-b-0 border-slate-900 mt-2">
+                      Dados da Peça e Produção Detalhada
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white scrollbar-thin print:shadow-none print:rounded-none print:border-2 print:border-slate-900">
+                    <table className="w-full text-left min-w-[900px] print:min-w-0 print:w-full print:text-[9px] print:border-collapse">
                         <thead>
-                          <tr className="bg-slate-950 text-white text-[10px] lg:text-xs uppercase print:bg-slate-200 print:text-slate-900">
-                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-slate-400">Esp. (mm)</th>
-                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Qtd</th>
-                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-slate-400">Chapas (Qtd x Tam)</th>
-                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Tempo</th>
-                            <th className="p-3 border-b-2 border-orange-500 print:border-slate-400">Peso</th>
-                            <th className="p-3 text-right border-b-2 border-orange-500 print:border-slate-400">Custo Máquina R$</th>
+                          <tr className="bg-slate-950 text-white text-[10px] lg:text-xs uppercase print:bg-slate-200 print:text-slate-900 print:border-b-2 print:border-slate-900">
+                            <th className="p-3 border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">ID da Peça</th>
+                            <th className="p-3 border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Dimensões (mm)</th>
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Furos</th>
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Qtd</th>
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Peso (Kg)</th>
+                            <th className="p-3 text-center border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Chapas (L x C)</th>
+                            <th className="p-3 border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Tempo</th>
+                            <th className="p-3 text-right border-b-2 border-orange-500 print:border-b-0 print:border print:border-slate-400 print:p-1.5">Custo Máquina R$</th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-slate-100 text-xs lg:text-sm print:divide-slate-300">
-                          {resultadoOrcamento.detalhamento_espessuras.map((item, index) => (
-                              <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-3 font-black text-center text-slate-900 bg-slate-50 print:bg-transparent">{item.espessura.toFixed(2)}</td>
-                                <td className="p-3 font-medium text-slate-700">{item.qtd_pecas}</td>
-                                <td className="p-3 text-center">
-                                  <span className="bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded text-[10px] lg:text-xs block w-max mx-auto border border-orange-200 print:bg-transparent print:border-slate-400 print:text-slate-800">{item.chapas_necessarias} un</span>
-                                  <span className="text-[9px] lg:text-[10px] text-slate-500 font-mono mt-1 block">{item.dimensao_chapa}</span>
-                                </td>
-                                <td className="p-3 font-mono text-slate-600 text-[10px] lg:text-xs">{Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m</td>
-                                <td className="p-3 font-medium text-slate-700">{item.peso_kg.toFixed(2)} Kg</td>
-                                <td className="p-3 font-black text-right text-orange-600 truncate print:text-slate-900">R$ {Number(item.custo_maquina || 0).toFixed(2)}</td>
-                              </tr>
-                          ))}
+                        <tbody className="bg-white text-xs lg:text-sm print:divide-slate-400">
+                          {resultadoOrcamento.detalhamento_espessuras.map((item, index) => {
+                              
+                              const pecasDestaEspessura = listaPecas.filter(
+                                p => Number(p.espessura).toFixed(2) === Number(item.espessura).toFixed(2)
+                              );
+
+                              return (
+                                <React.Fragment key={index}>
+                                  
+                                  {/* 1. LINHAS INDIVIDUAIS DAS PEÇAS */}
+                                  {pecasDestaEspessura.map((p, i) => (
+                                    <tr key={`${index}-${i}`} className="hover:bg-slate-50 transition-colors border-t border-slate-100 print:border-none">
+                                      <td className="p-3 font-bold text-slate-800 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {p.id}
+                                      </td>
+                                      
+                                      <td className="p-3 text-slate-600 font-mono text-[10px] lg:text-xs print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {p.dimA} x {p.dimB}
+                                      </td>
+                                      
+                                      <td className="p-3 text-center text-slate-600 font-mono text-[10px] lg:text-xs print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {Number(p.nFuros) > 0 ? (
+                                          <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200 print:border-none print:p-0 print:bg-transparent">
+                                            {p.nFuros}x Ø{p.diaFuro}
+                                          </span>
+                                        ) : '-'}
+                                      </td>
+                                      
+                                      <td className="p-3 text-center font-medium text-slate-700 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[10px]">
+                                        {p.qtd}
+                                      </td>
+                                      
+                                      <td className="p-3 text-center text-slate-600 print:border print:border-slate-400 print:p-1 print:px-2">
+                                        <div className="flex flex-col print:flex-row print:justify-center">
+                                          <span className="text-[9px] text-slate-400 print:hidden">Unit: {p.pesoUnitario} | </span>
+                                          <span className="font-bold text-slate-700 print:text-[9px]">{p.pesoTotal}</span>
+                                        </div>
+                                      </td>
+                                      
+                                      {/* Colunas vazias na impressão, marcadas com hífens */}
+                                      <td className="p-3 text-center text-slate-300 print:border print:border-slate-400 print:p-1 print:px-2 print:text-slate-400">-</td>
+                                      <td className="p-3 text-slate-300 print:border print:border-slate-400 print:p-1 print:px-2 print:text-slate-400">-</td>
+                                      <td className="p-3 text-slate-300 text-right print:border print:border-slate-400 print:p-1 print:px-2 print:text-slate-400">-</td>
+                                    </tr>
+                                  ))}
+
+                                  {/* 2. LINHA DE SUBTOTAL DA ESPESSURA */}
+                                  <tr className="bg-orange-50/60 print:bg-slate-300 border-t-2 border-orange-200 print:border-y-2 print:border-slate-900 shadow-sm print:shadow-none">
+                                    <td colSpan="3" className="p-3 font-black text-orange-900 uppercase text-right print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[9px]">
+                                      TOTAL ESPESSURA {Number(item.espessura).toFixed(2)} mm
+                                    </td>
+                                    
+                                    <td className="p-3 text-center font-black text-orange-900 print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[10px]">
+                                      {item.qtd_pecas}
+                                    </td>
+                                    
+                                    <td className="p-3 text-center font-black text-orange-900 print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[10px]">
+                                      {item.peso_kg.toFixed(2)}
+                                    </td>
+                                    
+                                    <td className="p-3 text-center print:border print:border-slate-900 print:p-1.5">
+                                      <span className="bg-orange-200 text-orange-900 font-bold px-2 py-0.5 rounded text-[10px] lg:text-xs block w-max mx-auto print:bg-transparent print:text-slate-900 print:inline print:p-0 print:text-[10px]">
+                                        {item.chapas_necessarias} un
+                                      </span>
+                                      <span className="text-[9px] lg:text-[10px] text-orange-700 font-mono mt-1 block print:text-slate-700 print:inline print:ml-1 print:text-[9px]">
+                                        ({item.dimensao_chapa})
+                                      </span>
+                                    </td>
+                                    
+                                    <td className="p-3 font-mono font-bold text-orange-900 text-[10px] lg:text-xs print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[10px]">
+                                      {Math.floor(item.tempo_min / 60)}h {Math.round(item.tempo_min % 60)}m
+                                    </td>
+                                    
+                                    <td className="p-3 font-black text-right text-orange-600 text-sm lg:text-base print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[10px]">
+                                      R$ {Number(item.custo_maquina || 0).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                  
+                                </React.Fragment>
+                              )
+                          })}
                         </tbody>
                     </table>
                   </div>
-                </div>
-
-                {/* --- BLOCO DE ASSINATURA E CONDIÇÕES GERAIS (EXATAMENTE COMO NA SUA REFERÊNCIA) --- */}
-                <div className="hidden print:block mt-6 pt-4 border-t-2 border-slate-800 break-inside-avoid px-8 pb-6">
-                  <div className="flex justify-between items-end gap-6">
-                      <div className="text-[10px] text-slate-600 w-3/5 space-y-1">
-                          <p className="font-bold text-slate-800">Condições Gerais:</p>
-                          <p>1. Os valores orçados referem-se estritamente às geometrias fornecidas.</p>
-                          <p>2. Variações na espessura comercial da chapa estão sujeitas à tolerância da usina.</p>
-                          <p>3. Prazo de entrega a combinar após aprovação deste orçamento.</p>
-                      </div>
-                      <div className="w-2/5 text-center">
-                          <div className="border-t border-slate-500 pt-2 mx-auto">
-                              <p className="text-xs font-bold text-slate-900">Depto. Comercial - Lypsyos</p>
-                              <p className="text-[10px] text-slate-500">Assinatura / Carimbo</p>
-                          </div>
-                      </div>
+                  
+                  {/* ========================================== */}
+                  {/* CONDIÇÕES E ASSINATURAS - VERSÃO PDF B2B */}
+                  {/* ========================================== */}
+                  <div className="hidden print:block mt-6 border-2 border-slate-900 break-inside-avoid">
+                     <div className="bg-slate-900 text-white text-[9px] font-bold uppercase p-1.5 tracking-wider">
+                         Observações sobre Prazo e Produção
+                     </div>
+                     <div className="p-4 grid grid-cols-2 gap-8 bg-slate-50">
+                         <div className="text-[9px] text-slate-800 space-y-1.5 font-medium">
+                             <p>1. Os valores orçados referem-se estritamente às geometrias fornecidas na data da emissão.</p>
+                             <p>2. Variações na espessura comercial da chapa estão sujeitas à tolerância da usina siderúrgica.</p>
+                             <p>3. Prazo de entrega a combinar após aprovação técnica e financeira deste documento.</p>
+                         </div>
+                         <div className="flex flex-col items-center justify-end pt-6 pb-2">
+                             <div className="border-t-2 border-slate-900 w-3/4 pt-1.5 text-center">
+                                 <p className="text-[10px] font-black text-slate-900 uppercase">Depto. Comercial - Lypsyos</p>
+                                 <p className="text-[8px] text-slate-500 uppercase font-bold">Assinatura e Carimbo</p>
+                             </div>
+                         </div>
+                     </div>
                   </div>
-                </div>
 
+                </div>
               </div>
             </div>
           </div>

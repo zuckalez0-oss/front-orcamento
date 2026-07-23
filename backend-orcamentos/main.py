@@ -3,12 +3,58 @@ import tempfile
 import uvicorn
 import ezdxf
 from ezdxf import bbox
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import math
 from fastapi.middleware.cors import CORSMiddleware
 
+# --- IMPORTAÇÕES PARA O BANCO DE DADOS (SQLAlchemy) ---
+from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+# ==========================================
+# 1. CONFIGURAÇÃO DO BANCO DE DADOS SQLITE
+# ==========================================
+SQLALCHEMY_DATABASE_URL = "sqlite:///./geoquote.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+# ==========================================
+# 1. CONFIGURAÇÃO DO BANCO DE DADOS SQLITE
+# ==========================================
+class DBParametrosMaterial(Base):
+        __tablename__ = "parametros_material"
+        id = Column(Integer, primary_key=True, index=True)
+        id_str = Column(String, unique=True, index=True)
+        maquina = Column(String, index=True)
+        material = Column(String, index=True)
+        espessura = Column(Float, index=True)
+        precoKg = Column(Float)
+        velocidadeCorte = Column(Float)
+        valorHora = Column(Float)
+Base.metadata.create_all(bind=engine)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+# ==========================================
+# 2. INICIALIZAÇÃO DO FASTAPI
+# ==========================================
+app = FastAPI(title="API Lypsyos - Motor de Orçamentos")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:5173"], # Adicionei a 5174 por precaução com o Vite
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 PARAMETROS_LASER = {
     "0.90": {"velTeorica": 26000, "velPratica": 22100},
     "0.95": {"velTeorica": 26000, "velPratica": 22100},
@@ -90,17 +136,15 @@ PARAMETROS_GUILHOTINA = {
 class ConfigChapa(BaseModel):
     largura: float
     comprimento: float
-app = FastAPI(title="API Lypsyos - Motor de Orçamentos")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5173"], # Adicionei a 5174 por precaução com o Vite
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# 1. MODELO DA PEÇA (Atualizado com os campos do payload do frontend)
+# ==========================================
+# 3. MODELOS PYDANTIC (CORRIGIDOS)
+# ==========================================
+class ConfigChapa(BaseModel):
+    largura: float
+    comprimento: float
+
 class Peca(BaseModel):
     id: str
     qtd: int
@@ -109,14 +153,16 @@ class Peca(BaseModel):
     dimA: float
     dimB: float
     dimC: Optional[float] = 0.0
+    
+    # NOVOS CAMPOS DE FURAÇÃO (Substituindo o furoPadraoCantos)
+    tipoFuro: str
     nFuros: int
     diaFuro: float
-    furoPadraoCantos: bool
     furoOffsetX: float
     furoOffsetY: float
+    
     pesoUnitario: float
     pesoTotal: float
-    # Novos campos recebidos do frontend:
     valorHora: float
     precoKgBase: float
     maquina: Optional[str] = None
@@ -126,18 +172,66 @@ class Peca(BaseModel):
     velocidadeCorte: Optional[float] = 0.0
     dxfImportado: Optional[bool] = False
 
-# 2. MODELO DO ORÇAMENTO (Atualizado com campos faltantes)
 class OrcamentoPayload(BaseModel):
     cliente: str
     imposto: float
     comissao: float
-    margemLucro: float       # Adicionado
+    margemLucro: float
     precoKg: float
     frete: float
     processo: str
-    fatorNesting: float      # Adicionado
+    fatorNesting: float
     pecas: List[Peca]
     configChapas: Dict[str, ConfigChapa]
+
+# Modelos Pydantic para o CRUD do Banco
+class ParametroCreate(BaseModel):
+    id_str: str
+    maquina: str
+    material: str
+    espessura: float
+    precoKg: float
+    velocidadeCorte: float
+    valorHora: float
+
+
+
+# ==========================================
+# 4. ROTAS DO BANCO DE DADOS (PARÂMETROS)
+# ==========================================
+@app.get("/parametros")
+def listar_parametros(db: Session = Depends(get_db)):
+    return db.query(DBParametroMaterial).all()
+
+@app.post("/parametros")
+def criar_parametro(param: ParametroCreate, db: Session = Depends(get_db)):
+    db_param = db.query(DBParametroMaterial).filter(DBParametroMaterial.id_str == param.id_str).first()
+    if db_param:
+        # Se já existe, atualiza
+        db_param.precoKg = param.precoKg
+        db_param.velocidadeCorte = param.velocidadeCorte
+        db_param.valorHora = param.valorHora
+    else:
+        # Se não existe, cria novo
+        db_param = DBParametroMaterial(**param.dict())
+        db.add(db_param)
+    
+    db.commit()
+    db.refresh(db_param)
+    return db_param
+
+@app.delete("/parametros/{id_str}")
+def deletar_parametro(id_str: str, db: Session = Depends(get_db)):
+    db_param = db.query(DBParametroMaterial).filter(DBParametroMaterial.id_str == id_str).first()
+    if not db_param:
+        raise HTTPException(status_code=404, detail="Parâmetro não encontrado")
+    db.delete(db_param)
+    db.commit()
+    return {"status": "sucesso", "mensagem": "Parâmetro deletado"}
+
+# ==========================================
+# 5. ROTAS DE PROCESSAMENTO E ORÇAMENTO
+# ==========================================
 
 @app.post("/calcular-orcamento")
 def calcular_orcamento(dados: OrcamentoPayload):
@@ -149,7 +243,6 @@ def calcular_orcamento(dados: OrcamentoPayload):
     custo_maquina_global = 0.0
 
     tabela_ativa = PARAMETROS_LASER if dados.processo == "LASER" else PARAMETROS_PLASMA 
-    
     EFICIENCIA_NESTING = dados.fatorNesting if dados.fatorNesting > 0 else 0.70
 
     resumo_espessuras = {}
@@ -168,14 +261,15 @@ def calcular_orcamento(dados: OrcamentoPayload):
                 "custo_maquina": 0.0
             }
 
-        parametros_maquina = tabela_ativa.get(espessura_str, {}) 
-        veloc_base_mm_min = parametros_maquina.get("velPratica", 5000.0) 
-        veloc_furo_mm_min = parametros_maquina.get("velocidade_furo", veloc_base_mm_min * 0.20)
+        # Busca a velocidade na peça recebida (que já veio do BD/Frontend) 
+        # ou usa fallback na tabela teórica
+        veloc_base_mm_min = peca.velocidadeCorte if peca.velocidadeCorte > 0 else tabela_ativa.get(espessura_str, {}).get("velPratica", 5000.0) 
+        veloc_furo_mm_min = veloc_base_mm_min * 0.20 # Regra geral: furo é 20% da velocidade de corte reta
 
-        perimetro_externo_mm = (peca.dimA + peca.dimB) * 2
+        perimetro_externo_mm = peca.perimetroCorteMm if peca.dxfImportado else (peca.dimA + peca.dimB) * 2
         perimetro_furos_mm = peca.nFuros * (math.pi * peca.diaFuro)
 
-        tempo_corte_externo_min = perimetro_externo_mm / veloc_base_mm_min
+        tempo_corte_externo_min = perimetro_externo_mm / veloc_base_mm_min if veloc_base_mm_min > 0 else 0
         tempo_corte_furos_min = (perimetro_furos_mm / veloc_furo_mm_min) if veloc_furo_mm_min > 0 else 0
 
         tempo_entrada_por_furo_min = 0.03 * peca.nFuros
@@ -185,7 +279,7 @@ def calcular_orcamento(dados: OrcamentoPayload):
         tempo_real_unidade = (tempo_corte_externo_min + tempo_corte_furos_min + tempo_entrada_por_furo_min + movimento_em_vazio_min) * fator_dinamico
         
         tempo_total_peca = tempo_real_unidade * peca.qtd
-        area_total_peca = (peca.dimA * peca.dimB) * peca.qtd
+        area_total_peca = peca.areaUtilMm2 * peca.qtd if peca.dxfImportado else (peca.dimA * peca.dimB) * peca.qtd
         
         custo_material_peca = peca.pesoTotal * peca.precoKgBase 
         custo_maquina_peca = (tempo_total_peca / 60) * peca.valorHora
@@ -229,26 +323,17 @@ def calcular_orcamento(dados: OrcamentoPayload):
         chapas_total_global += chapas_necessarias
         detalhamento_lista.append(dados_esp)
 
-    # --- MATEMÁTICA DE MARKUP E CASCATA DE PREÇO ---
     custo_producao_global = custo_material_global + custo_maquina_global
-    
-    # Soma as porcentagens e divide por 100 para aplicar na fórmula
     soma_percentuais = (dados.imposto + dados.comissao + dados.margemLucro) / 100
-    
-    # Trava para evitar markup negativo ou divisão por zero (se a soma passar de 100%)
     if soma_percentuais >= 1.0:
         soma_percentuais = 0.99 
 
-    # Preço Venda Bruto = CP / (1 - Taxas)
     if custo_producao_global > 0:
         preco_venda_bruto = custo_producao_global / (1 - soma_percentuais)
     else:
         preco_venda_bruto = 0.0
 
-    # Retenção de taxas em R$
     valor_taxas_incidentes = preco_venda_bruto * soma_percentuais
-    
-    # Preço Final (soma do frete por último)
     preco_final = preco_venda_bruto + dados.frete
 
     return {
@@ -260,14 +345,11 @@ def calcular_orcamento(dados: OrcamentoPayload):
             "custo_material": round(custo_material_global, 2),
             "custo_maquina": round(custo_maquina_global, 2),
             "custo_producao": round(custo_producao_global, 2),
-            
-            # --- CAMPOS NOVOS PARA PREENCHER A INTERFACE ---
             "taxas_incidentes_perc": round(soma_percentuais * 100, 2),
             "taxas_incidentes_valor": round(valor_taxas_incidentes, 2),
             "preco_venda_bruto": round(preco_venda_bruto, 2),
             "frete": round(dados.frete, 2),
             "preco_final": round(preco_final, 2),
-            
             "chapas_totais": chapas_total_global
         },
         "detalhamento_espessuras": detalhamento_lista
@@ -293,8 +375,6 @@ async def processar_dxf(file: UploadFile = File(...)):
             dim_b = round(extents.extmax.y - extents.extmin.y, 2)
             
             svg_elements = []
-            
-            # --- NOVAS VARIÁVEIS PARA FUROS ---
             n_furos = 0
             dia_furo_ref = 0.0 
 
@@ -319,10 +399,9 @@ async def processar_dxf(file: UploadFile = File(...)):
                     cy = -entity.dxf.center.y
                     r = entity.dxf.radius
                     
-                    # --- LÓGICA DE EXTRAÇÃO DE FUROS ---
                     n_furos += 1
                     if dia_furo_ref == 0.0:
-                        dia_furo_ref = round(r * 2, 2) # Pega o diâmetro do primeiro furo que encontrar
+                        dia_furo_ref = round(r * 2, 2) 
                         
                     svg_elements.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#00C4CC" stroke-width="2" />')
             
@@ -336,8 +415,8 @@ async def processar_dxf(file: UploadFile = File(...)):
                 "sucesso": True,
                 "dimA": dim_a,
                 "dimB": dim_b,
-                "nFuros": n_furos,          # Enviando a quantidade para o React
-                "diaFuro": dia_furo_ref,    # Enviando o diâmetro para o React
+                "nFuros": n_furos,
+                "diaFuro": dia_furo_ref,
                 "svgMarkup": svg_markup
             }
 
@@ -347,7 +426,82 @@ async def processar_dxf(file: UploadFile = File(...)):
                 
     except Exception as e:
         return {"sucesso": False, "erro": f"Falha ao ler o DXF: {str(e)}"}
-# 3. BLOCO DE INICIALIZAÇÃO
-# Isso permite que você rode a API apenas executando o arquivo python no terminal (ex: python main.py)
+
+# ==========================================
+# 6. ROTA DE GERAÇÃO DE DXF
+# ==========================================
+def remover_arquivo_temp(path: str):
+    """Função utilitária para limpar arquivos de DXF gerados após o envio"""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        print(f"Erro ao deletar arquivo temporário {path}: {e}")
+
+@app.post("/gerar-dxf")
+def gerar_dxf(peca: Peca, background_tasks: BackgroundTasks):
+    """Gera um arquivo DXF baseado nos parâmetros manuais da peça"""
+    try:
+        # Cria um novo documento DXF compatível com versões padrão industriais
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        
+        w = peca.dimA
+        h = peca.dimB
+        ox = peca.furoOffsetX
+        oy = peca.furoOffsetY
+        r = peca.diaFuro / 2
+
+        # 1. Desenha a borda externa da peça (Polilinha fechada)
+        msp.add_lwpolyline([(0, 0), (w, 0), (w, h), (0, h)], close=True)
+
+        # 2. Lógica para desenhar os furos baseada no Tipo
+        furos_coordenadas = []
+
+        if peca.tipoFuro.startswith('auto') and r > 0 and ox > 0 and oy > 0:
+            furos_coordenadas.extend([
+                (ox, oy), 
+                (w - ox, oy), 
+                (w - ox, h - oy), 
+                (ox, h - oy)
+            ])
+            if peca.tipoFuro in ['auto_6', 'auto_8']:
+                furos_coordenadas.extend([(w / 2, oy), (w / 2, h - oy)])
+            if peca.tipoFuro == 'auto_8':
+                furos_coordenadas.extend([(ox, h / 2), (w - ox, h / 2)])
+                
+        elif peca.tipoFuro == 'manual' and peca.nFuros > 0 and r > 0:
+            # Distribui furos alinhados no meio se forem até 5 (Mesma lógica do front)
+            if peca.nFuros <= 5:
+                for i in range(peca.nFuros):
+                    cx = (w / (peca.nFuros + 1)) * (i + 1)
+                    cy = h / 2
+                    furos_coordenadas.append((cx, cy))
+
+        # Adiciona os círculos no ModelSpace
+        for cx, cy in furos_coordenadas:
+            msp.add_circle((cx, cy), radius=r)
+
+        # 3. Salva em um arquivo temporário e envia como resposta
+        fd, path = tempfile.mkstemp(suffix=".dxf", prefix=f"lypsyos_{peca.id}_")
+        os.close(fd)
+        
+        doc.saveas(path)
+        
+        # Agenda a remoção do arquivo após a resposta ser enviada para não encher o disco
+        background_tasks.add_task(remover_arquivo_temp, path)
+        
+        return FileResponse(
+            path, 
+            media_type="application/dxf", 
+            filename=f"{peca.id}.dxf"
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar DXF: {str(e)}")
+
+# ==========================================
+# INICIALIZADOR
+# ==========================================
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
