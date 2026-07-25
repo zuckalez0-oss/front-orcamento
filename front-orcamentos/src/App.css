@@ -2,17 +2,41 @@
    PALETA DE CORES GLOBAL - TEMA GEOQUOTE (LARANJA E PRETO)
    ========================================= */
 :root {
-  --bg-body: #F3F4F6;             
-  --gq-dark-bg: #0A0A0A;          /* Preto absoluto (referência logo) */
-  --gq-navy-panel: #171717;       /* Fundo muito escuro para os cards */
+  /* Tokens de marca — invariantes, os mesmos nos dois temas */
   --gq-orange-accent: #F97316;    /* Laranja tecnológico / Laser (Tailwind orange-500) */
   --gq-orange-hover: #EA580C;     /* Tailwind orange-600 */
   --gq-white: #FFFFFF;
-  --gq-gray-light: #E5E7EB;
-  --gq-text-muted: #9CA3AF;
-  
-  /* Gradientes sutis para painéis */
+  --gq-dark-bg: #0A0A0A;          /* Preto absoluto (referência logo), usado em elementos sempre-escuros (header, previews) */
+  --gq-navy-panel: #171717;
   --panel-gradient: linear-gradient(145deg, #171717 0%, #0A0A0A 100%);
+
+  /* Tokens de tema — modo claro (padrão) */
+  color-scheme: light;
+  --bg-body: #F3F4F6;
+  --surface-card: rgba(255, 255, 255, 0.9);
+  --surface-card-inset: #F8FAFC;
+  --surface-input: #FFFFFF;
+  --border-default: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --text-heading: #0F172A;
+  --text-body: #334155;
+  --text-muted: #64748B;
+}
+
+/* Tokens de tema — modo escuro (ativado via classe .dark na raiz, ver index.css) */
+.dark {
+  /* Essencial para os controles nativos do navegador (a lista de opções aberta
+     de um <select>, principalmente) renderizarem com paleta escura em vez de
+     assumir clara e ignorar o CSS de autor. */
+  color-scheme: dark;
+  --surface-card: var(--panel-gradient);
+  --surface-card-inset: rgba(0, 0, 0, 0.25);
+  --surface-input: var(--gq-dark-bg);
+  --border-default: #262626;
+  --border-strong: #374151;
+  --text-heading: #FFFFFF;
+  --text-body: #E2E8F0;
+  --text-muted: #94A3B8;
 }
 
 body {
@@ -61,6 +85,61 @@ body {
 .btn-secondary:hover {
   background-color: #1F2937;
   border-color: #4B5563;
+}
+
+/* =========================================
+   SUPERFÍCIES DE TEMA (usadas nas 3 telas — claro/escuro seguem os tokens acima)
+   ========================================= */
+.surface-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-body);
+}
+
+.surface-card-inset {
+  background: var(--surface-card-inset);
+  border: 1px solid var(--border-default);
+}
+
+.surface-heading {
+  color: var(--text-heading);
+}
+
+.surface-body {
+  color: var(--text-body);
+}
+
+.surface-muted {
+  color: var(--text-muted);
+}
+
+.input-field {
+  background-color: var(--surface-input);
+  border: 1px solid var(--border-strong);
+  color: var(--text-body);
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--gq-orange-accent);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.35);
+}
+
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Reforço explícito para a lista de opções do <select> — Firefox honra isso
+   diretamente; navegadores baseados em Chromium dependem mais do color-scheme
+   acima, mas alguns SO/versões ainda precisam do valor explícito no <option>. */
+.input-field option {
+  background-color: var(--surface-input);
+  color: var(--text-body);
 }
 
 /* Forçando o scrollbar da lista a ser mais sutil */

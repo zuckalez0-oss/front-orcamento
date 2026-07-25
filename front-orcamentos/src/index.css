@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+/* Habilita dark mode controlado por classe (.dark na raiz) em vez de prefers-color-scheme,
+   para o toggle de tema manual funcionar. */
+@custom-variant dark (&:where(.dark, .dark *));

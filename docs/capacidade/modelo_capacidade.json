@@ -1,0 +1,65 @@
+{
+  "10": {
+    "usuarios_simultaneos": 10,
+    "pico_concorrente_estimado": 1,
+    "workers_recomendados": 1,
+    "vcpu_minimo": 2,
+    "carga_media_req_s": 0.33,
+    "recomendacao_basic": [
+      "Basic (shared)",
+      2,
+      2,
+      18,
+      false
+    ],
+    "recomendacao_cpu_optimized": [
+      "CPU-Optimized (dedicated)",
+      2,
+      4,
+      42,
+      true
+    ]
+  },
+  "100": {
+    "usuarios_simultaneos": 100,
+    "pico_concorrente_estimado": 10,
+    "workers_recomendados": 1,
+    "vcpu_minimo": 2,
+    "carga_media_req_s": 3.33,
+    "recomendacao_basic": [
+      "Basic (shared)",
+      2,
+      2,
+      18,
+      false
+    ],
+    "recomendacao_cpu_optimized": [
+      "CPU-Optimized (dedicated)",
+      2,
+      4,
+      42,
+      true
+    ]
+  },
+  "1000": {
+    "usuarios_simultaneos": 1000,
+    "pico_concorrente_estimado": 100,
+    "workers_recomendados": 4,
+    "vcpu_minimo": 5,
+    "carga_media_req_s": 33.33,
+    "recomendacao_basic": [
+      "Basic (shared)",
+      8,
+      16,
+      96,
+      false
+    ],
+    "recomendacao_cpu_optimized": [
+      "CPU-Optimized (dedicated)",
+      8,
+      16,
+      168,
+      true
+    ]
+  }
+}
