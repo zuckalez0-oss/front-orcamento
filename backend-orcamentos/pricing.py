@@ -23,6 +23,11 @@ class ConfiguracaoPrecificacao:
     fator_velocidade_furo: float = 0.20
     velocidade_fallback_mm_min: float = 5000.0
     teto_soma_percentuais: float = 0.99
+    # Estimativa típica de largura de kerf (material vaporizado ao longo do corte)
+    # pra corte a laser em chapa fina/média — é uma aproximação de engenharia, não
+    # um valor de precisão por máquina/gás/material. Usada só pro cálculo de sobra
+    # (Controle de Sobras), não afeta tempo de corte nem custo de material.
+    largura_kerf_mm: float = 0.15
 
 
 class PricingEngine:
@@ -66,10 +71,15 @@ class PricingEngine:
 
     # --- Custo de material ---
 
+    def peso_por_area_kg(self, area_mm2, espessura_mm, densidade_g_cm3):
+        """Peso de uma área plana qualquer (mm²) de chapa: volume * g/cm³ de
+        densidade, convertido para kg. Base tanto do peso de uma chapa inteira
+        quanto do peso da sobra (Controle de Sobras)."""
+        return (area_mm2 * espessura_mm * densidade_g_cm3) / 1_000_000
+
     def peso_chapa_kg(self, largura_mm, comprimento_mm, espessura_mm, densidade_g_cm3):
-        """Peso de UMA chapa inteira (não da peça): mm³ de volume * g/cm³ de densidade,
-        convertido para kg."""
-        return (largura_mm * comprimento_mm * espessura_mm * densidade_g_cm3) / 1_000_000
+        """Peso de UMA chapa inteira (não da peça)."""
+        return self.peso_por_area_kg(largura_mm * comprimento_mm, espessura_mm, densidade_g_cm3)
 
     def custo_material_chapa(self, chapas_necessarias, largura_mm, comprimento_mm, espessura_mm, densidade_g_cm3, preco_kg):
         """Cobra a(s) chapa(s) inteira(s) consumida(s) — peça + sucata — em vez de só o

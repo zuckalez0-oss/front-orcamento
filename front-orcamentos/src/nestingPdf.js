@@ -40,6 +40,12 @@ function desenharCabecalho(doc, { cliente, item, chapaIndex, totalChapasEspessur
   doc.setTextColor(COR_TEXTO_MUTED);
   const linhaInfo = `Espessura ${Number(item.espessura).toFixed(2)}mm  ·  Chapa ${chapaIndex + 1} de ${totalChapasEspessura}  ·  ${item.dimensao_chapa}mm`;
   doc.text(linhaInfo, MARGEM_PAGINA, 27);
+
+  if (item.utilizacao_pct !== undefined) {
+    const pageW2 = doc.internal.pageSize.width;
+    const linhaAproveitamento = `${item.utilizacao_pct}% aproveitamento  ·  ${item.sucata_peso_kg}kg sucata (espessura)`;
+    doc.text(linhaAproveitamento, pageW2 - MARGEM_PAGINA, 27, { align: 'right' });
+  }
 }
 
 function desenharRodape(doc) {

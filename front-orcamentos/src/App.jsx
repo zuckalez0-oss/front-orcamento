@@ -1,13 +1,36 @@
 
 import React, { useEffect, useState, Fragment } from 'react';
 import './App.css';
-import { corDaPeca, calcularFuros, furosAbsolutos } from './nestingUtils.js';
+import {
+  corDaPeca, calcularFuros, furosAbsolutos,
+  areaCirculo, perimetroCirculo, areaTriangulo, perimetroTriangulo,
+  verticesTriangulo, verticesTrianguloAbsolutos,
+} from './nestingUtils.js';
 import { gerarPdfNesting } from './nestingPdf.js';
 import { supabase } from './lib/supabaseClient.js';
 import { useAuth } from './useAuth.js';
 import PerfilUsuario from './PerfilUsuario.jsx';
 
 const API_BASE = 'http://localhost:8000';
+
+// Desenha o contorno real da peça (retângulo, círculo ou triângulo) dentro de um
+// footprint x/y/width/height — usado tanto no preview de peça única quanto no
+// nesting (ChapaSVG), pra evitar desenhar sempre um retângulo genérico.
+// `verticesAbsolutos`, quando informado, tem prioridade sobre width/height/tipoTriangulo
+// pro caso do triângulo (nesting já traz os vértices prontos, considerando rotação 90°).
+function ContornoPeca({ tipoPeca, tipoTriangulo, x, y, width, height, verticesAbsolutos, ...pathProps }) {
+  if (tipoPeca === 'C') {
+    return <circle cx={x + width / 2} cy={y + height / 2} r={width / 2} {...pathProps} />;
+  }
+
+  if (tipoPeca === 'T') {
+    const vertices = verticesAbsolutos || verticesTriangulo(width, height, tipoTriangulo).map((v) => ({ x: x + v.x, y: y + v.y }));
+    const pontos = vertices.map((v) => `${v.x},${v.y}`).join(' ');
+    return <polygon points={pontos} {...pathProps} />;
+  }
+
+  return <rect x={x} y={y} width={width} height={height} {...pathProps} />;
+}
 
 // Renderiza uma chapa de nesting (peças coloridas + furos recortados) em SVG.
 // Reaproveitada tanto na miniatura quanto no modal de expansão.
@@ -36,8 +59,11 @@ function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, clas
 
         return (
           <g key={pIndex}>
-            <rect
+            <ContornoPeca
+              tipoPeca={pecaOriginal?.tipoPeca}
+              tipoTriangulo={pecaOriginal?.tipoTriangulo}
               x={p.x} y={p.y} width={p.width} height={p.height}
+              verticesAbsolutos={pecaOriginal?.tipoPeca === 'T' ? verticesTrianguloAbsolutos(p, pecaOriginal) : undefined}
               fill={corPeca} fillOpacity="0.45" stroke={corPeca}
               strokeWidth={strokeW}
             />
@@ -107,6 +133,7 @@ function App() {
   const [processo, setProcesso] = useState('LASER');
   const [qtd, setQtd] = useState('');
   const [tipoPeca, setTipoPeca] = useState('R');
+  const [tipoTriangulo, setTipoTriangulo] = useState('reto'); // só relevante quando tipoPeca === 'T'
   const [dimA, setDimA] = useState('');
   const [dimB, setDimB] = useState('');
   const [dimC, setDimC] = useState('');
@@ -483,8 +510,23 @@ function App() {
       return;
     }
 
-    const areaBaseMm2 = dxfImportado && dxfAreaUtilMm2 > 0 ? dxfAreaUtilMm2 : parseFloat(dimA || 0) * parseFloat(dimB || 0);
-    const perimetroCorteMm = dxfImportado && dxfPerimetroCorteMm > 0 ? dxfPerimetroCorteMm : 2 * (parseFloat(dimA || 0) + parseFloat(dimB || 0));
+    const dimANum = parseFloat(dimA || 0);
+    const dimBNum = parseFloat(dimB || 0);
+    let areaBaseMm2;
+    let perimetroCorteMm;
+    if (dxfImportado && dxfAreaUtilMm2 > 0) {
+      areaBaseMm2 = dxfAreaUtilMm2;
+      perimetroCorteMm = dxfPerimetroCorteMm;
+    } else if (tipoPeca === 'C') {
+      areaBaseMm2 = areaCirculo(dimANum);
+      perimetroCorteMm = perimetroCirculo(dimANum);
+    } else if (tipoPeca === 'T') {
+      areaBaseMm2 = areaTriangulo(dimANum, dimBNum);
+      perimetroCorteMm = perimetroTriangulo(dimANum, dimBNum, tipoTriangulo);
+    } else {
+      areaBaseMm2 = dimANum * dimBNum;
+      perimetroCorteMm = 2 * (dimANum + dimBNum);
+    }
     const volume = areaBaseMm2 * parseFloat(espessuraSelecionada || 0);
     const pesoUnitario = (volume * (parametroAtual.densidade || 7.85)) / 1000000;
     const pesoTotal = pesoUnitario * parseInt(qtd || 1);
@@ -493,6 +535,7 @@ function App() {
       id,
       qtd: parseInt(qtd),
       tipoPeca,
+      tipoTriangulo: tipoPeca === 'T' ? tipoTriangulo : null,
       maquina: maquinaSelecionada,
       material: parametroAtual.material,
       espessura: parametroAtual.espessura,
@@ -502,8 +545,8 @@ function App() {
       valorHora: parametroAtual.valorHora,
       tempoPiercing: parametroAtual.tempoPiercing,
       tempoSetup: parametroAtual.tempoSetup,
-      dimA: Number(dimA) || 0,
-      dimB: Number(dimB) || 0,
+      dimA: dimANum || 0,
+      dimB: tipoPeca === 'C' ? (dimANum || 0) : (dimBNum || 0),
       dimC: Number(dimC) || 0,
       perimetroCorteMm,
       areaUtilMm2: areaBaseMm2,
@@ -587,6 +630,7 @@ function App() {
   const editarPeca = (index) => {
     const peca = listaPecas[index];
     setId(peca.id); setQtd(peca.qtd); setTipoPeca(peca.tipoPeca);
+    setTipoTriangulo(peca.tipoTriangulo || 'reto');
     setProcesso(peca.maquina || 'LASER');
     setMaquinaSelecionada(peca.maquina || 'LASER');
     setMaterialSelecionado(peca.material || '');
@@ -662,8 +706,8 @@ function App() {
     }
 
     // 3) Criação vetorial manual/automática baseada em dimensões
-    const w = parseFloat(dimA) || (tipoPeca === 'Q' ? 100 : 200);
-    const h = parseFloat(dimB) || (tipoPeca === 'Q' ? w : 100);
+    const w = parseFloat(dimA) || (tipoPeca === 'Q' || tipoPeca === 'C' ? 100 : 200);
+    const h = tipoPeca === 'C' ? w : (parseFloat(dimB) || (tipoPeca === 'Q' ? w : 100));
 
     // Calcula um respiro (padding) de 15% para a peça não encostar nas bordas do SVG
     const maxDim = Math.max(w, h);
@@ -682,17 +726,19 @@ function App() {
         <span className="absolute top-2 left-2 text-xs font-mono text-slate-500">Preview Geométrico</span>
         
         <svg viewBox={viewBox} className="w-full h-full max-h-48 drop-shadow-2xl">
-          <rect 
-            x="0" 
-            y="0" 
-            width={w} 
-            height={h} 
-            fill="none" 
-            stroke="#F97316" 
-            strokeWidth={strokeW} 
-            strokeDasharray={strokeW * 4} 
+          <ContornoPeca
+            tipoPeca={tipoPeca}
+            tipoTriangulo={tipoTriangulo}
+            x={0}
+            y={0}
+            width={w}
+            height={h}
+            fill="none"
+            stroke="#F97316"
+            strokeWidth={strokeW}
+            strokeDasharray={strokeW * 4}
           />
-          
+
           {furosSvg.map((furo, index) => (
             <circle 
               key={index} 
@@ -1128,9 +1174,22 @@ function App() {
                           </div>
                           <div>
                             <label className="block text-[9px] font-bold surface-muted uppercase">Geometria</label>
-                            <select value={tipoPeca} onChange={(e) => setTipoPeca(e.target.value)} className="input-field mt-0.5 w-full rounded-lg px-2 py-1.5 text-xs">
+                            <select
+                              value={tipoPeca}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTipoPeca(val);
+                                if ((val === 'C' || val === 'T') && tipoFuro !== 'manual') {
+                                  setTipoFuro('manual');
+                                  setNFuros('');
+                                }
+                              }}
+                              className="input-field mt-0.5 w-full rounded-lg px-2 py-1.5 text-xs"
+                            >
                                 <option value="R">Retangular</option>
                                 <option value="Q">Quadrado</option>
+                                <option value="C">Círculo</option>
+                                <option value="T">Triângulo</option>
                             </select>
                           </div>
                         </div>
@@ -1152,18 +1211,37 @@ function App() {
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-widest text-orange-500 mb-1.5">Dimensões</p>
                         <div className="surface-card-inset grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 rounded-lg">
-                          <div>
-                            <label className="block text-[9px] font-semibold surface-muted">Dim A (X)</label>
-                            <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-semibold surface-muted">Dim B (Y)</label>
-                            <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" />
-                          </div>
-                          <div className="col-span-2 sm:col-span-1">
-                            <label className="block text-[9px] font-semibold surface-muted">Dim C (Z)</label>
-                            <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" placeholder="Opc." />
-                          </div>
+                          {tipoPeca === 'C' ? (
+                            <div className="col-span-2 sm:col-span-1">
+                              <label className="block text-[9px] font-semibold surface-muted">Diâmetro (mm)</label>
+                              <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" />
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="block text-[9px] font-semibold surface-muted">{tipoPeca === 'T' ? 'Base (X)' : 'Dim A (X)'}</label>
+                                <input type="number" value={dimA} onChange={(e) => setDimA(e.target.value)} required disabled={dxfImportado} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-semibold surface-muted">{tipoPeca === 'T' ? 'Altura (Y)' : 'Dim B (Y)'}</label>
+                                <input type="number" value={dimB} onChange={(e) => setDimB(e.target.value)} required disabled={dxfImportado} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" />
+                              </div>
+                            </>
+                          )}
+                          {tipoPeca === 'T' ? (
+                            <div className="col-span-2 sm:col-span-1">
+                              <label className="block text-[9px] font-semibold surface-muted">Tipo de Triângulo</label>
+                              <select value={tipoTriangulo} onChange={(e) => setTipoTriangulo(e.target.value)} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs">
+                                <option value="reto">Reto</option>
+                                <option value="isosceles">Isósceles</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="col-span-2 sm:col-span-1">
+                              <label className="block text-[9px] font-semibold surface-muted">Dim C (Z)</label>
+                              <input type="number" value={dimC} onChange={(e) => setDimC(e.target.value)} className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs" placeholder="Opc." />
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1185,9 +1263,13 @@ function App() {
                               className="input-field mt-0.5 w-full rounded px-2 py-1.5 text-xs"
                             >
                               <option value="manual">Manual</option>
-                              <option value="auto_4">Automático (4 Furos)</option>
-                              <option value="auto_6">Automático (6 Furos)</option>
-                              <option value="auto_8">Automático (8 Furos)</option>
+                              {tipoPeca !== 'C' && tipoPeca !== 'T' && (
+                                <>
+                                  <option value="auto_4">Automático (4 Furos)</option>
+                                  <option value="auto_6">Automático (6 Furos)</option>
+                                  <option value="auto_8">Automático (8 Furos)</option>
+                                </>
+                              )}
                             </select>
                           </div>
 
@@ -1355,6 +1437,14 @@ function App() {
                       <p className="text-[10px] lg:text-xs font-bold text-orange-800 dark:text-orange-300 uppercase">Custo Máquina R$</p>
                       <p className="text-lg xl:text-xl font-black text-orange-700 dark:text-orange-400 mt-1 truncate">R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}</p>
                     </div>
+                    <div className="input-field p-3 lg:p-4 rounded-xl shadow-sm text-center flex flex-col justify-center">
+                        <p className="text-[10px] lg:text-xs font-bold surface-muted uppercase">Aproveitamento</p>
+                        <p className="text-lg xl:text-xl font-black surface-heading mt-1 truncate">{resultadoOrcamento.totais_globais.utilizacao_media_pct?.toFixed(1)}%</p>
+                    </div>
+                    <div className="input-field p-3 lg:p-4 rounded-xl shadow-sm text-center flex flex-col justify-center">
+                        <p className="text-[10px] lg:text-xs font-bold surface-muted uppercase">Sucata (Kg)</p>
+                        <p className="text-lg xl:text-xl font-black surface-heading mt-1 truncate">{resultadoOrcamento.totais_globais.sucata_peso_total_kg}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -1481,6 +1571,9 @@ function App() {
                                       <span className="text-[9px] lg:text-[10px] text-orange-700 dark:text-orange-400 font-mono mt-1 block print:text-slate-700 print:inline print:ml-1 print:text-[9px]">
                                         ({item.dimensao_chapa})
                                       </span>
+                                      <span className="text-[9px] lg:text-[10px] text-orange-600/80 dark:text-orange-400/70 font-mono mt-0.5 block print:hidden" title="Área das peças / área total de chapa consumida">
+                                        {item.utilizacao_pct}% aproveit.
+                                      </span>
                                     </td>
 
                                     <td className="p-3 font-mono font-bold text-orange-900 dark:text-orange-300 text-[10px] lg:text-xs print:text-slate-900 print:border print:border-slate-900 print:p-1.5 print:text-[10px]">
@@ -1517,7 +1610,10 @@ function App() {
                         <div key={index} className="surface-card rounded-2xl p-4 lg:p-5">
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                             <p className="text-sm font-bold surface-heading">Espessura {Number(item.espessura).toFixed(2)}mm</p>
-                            <span className="text-xs font-semibold text-orange-500 dark:text-orange-400">{item.nesting.chapas_necessarias} chapa(s) de {item.dimensao_chapa}mm</span>
+                            <span className="text-xs font-semibold text-orange-500 dark:text-orange-400">
+                              {item.nesting.chapas_necessarias} chapa(s) de {item.dimensao_chapa}mm
+                              {' · '}{item.utilizacao_pct}% aproveitamento{' · '}{item.sucata_peso_kg}kg sucata
+                            </span>
                           </div>
                           <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-2">
                             {item.nesting.chapas.map((chapa, chapaIndex) => (
@@ -1653,6 +1749,7 @@ function App() {
             </div>
             <div className="p-3 lg:p-4 border-t border-slate-200 dark:border-white/10 text-xs surface-muted text-center shrink-0">
               {chapaExpandida.chapa.placements.length} peça(s) nesta chapa · {chapaExpandida.item.dimensao_chapa}mm
+              {' · '}{chapaExpandida.item.utilizacao_pct}% aproveitamento (espessura) · {chapaExpandida.item.sucata_peso_kg}kg sucata
             </div>
           </div>
         </div>

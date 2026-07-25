@@ -13,6 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from nesting import nestear_pecas, NestingError
 from pricing import PricingEngine
+from geometria import calcular_geometria
 
 motor_precos = PricingEngine()
 
@@ -201,6 +202,7 @@ class Peca(BaseModel):
     id: str
     qtd: int
     tipoPeca: str
+    tipoTriangulo: Optional[str] = None
     espessura: float
     dimA: float
     dimB: float
@@ -266,6 +268,7 @@ def calcular_orcamento(dados: OrcamentoPayload):
                 "peso_kg": 0.0,
                 "tempo_min": 0.0,
                 "area_total_mm2": 0.0,
+                "perimetro_total_mm": 0.0,
                 "custo_material": 0.0,
                 "custo_maquina": 0.0,
                 "tempo_setup": peca.tempoSetup,  # Guarda o setup desta espessura
@@ -280,21 +283,34 @@ def calcular_orcamento(dados: OrcamentoPayload):
             }
             pecas_por_espessura[espessura_str] = []
 
+        if peca.dxfImportado:
+            # DXF é o único caso em que o backend não tem como recalcular sozinho —
+            # confia no perímetro/área que o frontend extraiu do arquivo real.
+            perimetro_externo_mm = peca.perimetroCorteMm
+            area_peca_unidade = peca.areaUtilMm2
+            bbox_largura, bbox_altura = peca.dimA, peca.dimB
+        else:
+            # R/Q/C/T: o backend é a fonte de verdade da geometria (geometria.py).
+            geometria = calcular_geometria(peca.tipoPeca, peca.dimA, peca.dimB, peca.tipoTriangulo)
+            perimetro_externo_mm = geometria["perimetro"]
+            area_peca_unidade = geometria["area"]
+            bbox_largura, bbox_altura = geometria["bbox_largura"], geometria["bbox_altura"]
+
         pecas_por_espessura[espessura_str].append({
             "id": peca.id,
             "qtd": peca.qtd,
-            "dimA": peca.dimA,
-            "dimB": peca.dimB,
+            "dimA": bbox_largura,
+            "dimB": bbox_altura,
+            "tipoPeca": peca.tipoPeca,
+            "tipoTriangulo": peca.tipoTriangulo,
         })
-
-        perimetro_externo_mm = peca.perimetroCorteMm if peca.dxfImportado else (peca.dimA + peca.dimB) * 2
 
         tempo_real_unidade = motor_precos.tempo_producao_unidade_min(
             perimetro_externo_mm, peca.velocidadeCorte, peca.nFuros, peca.diaFuro, peca.tempoPiercing
         )
 
         tempo_total_peca = tempo_real_unidade * peca.qtd
-        area_total_peca = peca.areaUtilMm2 * peca.qtd if peca.dxfImportado else (peca.dimA * peca.dimB) * peca.qtd
+        area_total_peca = area_peca_unidade * peca.qtd
 
         # Custo de material não é mais somado peça a peça: é cobrado pela chapa inteira
         # consumida por espessura (peça + sucata), calculado depois do nesting real, abaixo.
@@ -304,6 +320,7 @@ def calcular_orcamento(dados: OrcamentoPayload):
         resumo_espessuras[espessura_str]["peso_kg"] += peca.pesoTotal
         resumo_espessuras[espessura_str]["tempo_min"] += tempo_total_peca
         resumo_espessuras[espessura_str]["area_total_mm2"] += area_total_peca
+        resumo_espessuras[espessura_str]["perimetro_total_mm"] += perimetro_externo_mm * peca.qtd
         resumo_espessuras[espessura_str]["custo_maquina"] += custo_maquina_peca
 
         total_pecas_global += peca.qtd
@@ -313,6 +330,10 @@ def calcular_orcamento(dados: OrcamentoPayload):
 
     detalhamento_lista = []
     chapas_total_global = 0
+    sucata_peso_total_global = 0.0
+    sucata_area_total_global = 0.0
+    chapa_area_total_global = 0.0
+    area_pecas_total_global = 0.0
 
     # Adicionando o Custo de Setup 1x por espessura/material
     for esp_str, dados_esp in resumo_espessuras.items():
@@ -359,7 +380,27 @@ def calcular_orcamento(dados: OrcamentoPayload):
         dados_esp["custo_total_espessura"] = dados_esp["custo_material"] + dados_esp["custo_maquina"]
         dados_esp["nesting"] = resultado_nesting
 
+        # Controle de Sobras: área/peso de chapa consumida que não virou peça —
+        # já está pago (custo_material fatura a chapa inteira), isso é só a métrica
+        # de aproveitamento/sucata pra exibir. Kerf estimado por comprimento total
+        # de corte (perímetro real de cada peça) x largura de kerf.
+        chapa_area_total_mm2 = chapas_necessarias * largura_chapa * comprimento_chapa
+        kerf_perda_area_mm2 = dados_esp["perimetro_total_mm"] * motor_precos.config.largura_kerf_mm
+        sucata_area_mm2 = max(0.0, chapa_area_total_mm2 - dados_esp["area_total_mm2"] - kerf_perda_area_mm2)
+        sucata_peso_kg = motor_precos.peso_por_area_kg(sucata_area_mm2, dados_esp["espessura"], dados_esp["densidade_ref"])
+        utilizacao_pct = (dados_esp["area_total_mm2"] / chapa_area_total_mm2 * 100) if chapa_area_total_mm2 > 0 else 0.0
+
+        dados_esp["chapa_area_total_mm2"] = chapa_area_total_mm2
+        dados_esp["kerf_perda_area_mm2"] = round(kerf_perda_area_mm2, 2)
+        dados_esp["sucata_area_mm2"] = round(sucata_area_mm2, 2)
+        dados_esp["sucata_peso_kg"] = round(sucata_peso_kg, 2)
+        dados_esp["utilizacao_pct"] = round(utilizacao_pct, 2)
+
         chapas_total_global += chapas_necessarias
+        sucata_peso_total_global += sucata_peso_kg
+        sucata_area_total_global += sucata_area_mm2
+        chapa_area_total_global += chapa_area_total_mm2
+        area_pecas_total_global += dados_esp["area_total_mm2"]
         detalhamento_lista.append(dados_esp)
 
     custo_producao_global = custo_material_global + custo_maquina_global
@@ -385,7 +426,12 @@ def calcular_orcamento(dados: OrcamentoPayload):
             "preco_venda_bruto": round(preco_venda_bruto, 2),
             "frete": round(dados.frete, 2),
             "preco_final": round(preco_final, 2),
-            "chapas_totais": chapas_total_global
+            "chapas_totais": chapas_total_global,
+            "sucata_peso_total_kg": round(sucata_peso_total_global, 2),
+            "sucata_area_total_mm2": round(sucata_area_total_global, 2),
+            "utilizacao_media_pct": round(
+                (area_pecas_total_global / chapa_area_total_global * 100) if chapa_area_total_global > 0 else 0.0, 2
+            ),
         },
         "detalhamento_espessuras": detalhamento_lista
     }
