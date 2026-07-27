@@ -1,219 +1,111 @@
-# Registro de Orçamentos
+<!--
+  PREENCHER ANTES DE PUBLICAR (marcados com TODO no corpo):
+  1. Como o orçamento é calculado (área, peso, perímetro, tempo de corte?)
+  2. Como a peça entra no sistema (formulário, DXF, upload?)
+  3. Onde os orçamentos ficam salvos (banco, arquivo, memória?)
+  4. Se existe autenticação de usuário
+  5. Ajustar o Roadmap para o que você realmente pretende fazer
+-->
 
-Sistema para gerenciamento e registro de orçamentos.
+# GeoQuote
 
-## Estrutura do Projeto
+> Orçamento de peças cortadas a **laser, plasma e oxicorte** — da geometria ao preço, sem planilha intermediária.
 
-```text
-registro-orcamentos/
-│
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Uvicorn](https://img.shields.io/badge/Uvicorn-2F9E44?style=for-the-badge)
+
+## O que faz
+
+Ferramenta web para gerar e registrar orçamentos de corte. Substitui a planilha que vai e volta entre o comercial e a produção por um fluxo único: entra a peça, sai o preço, fica o registro.
+
+- 📐 Orçamento de peças para **laser, plasma e oxicorte** <!-- TODO: detalhar como o preço é calculado -->
+- 🧾 Registro dos orçamentos gerados, consultáveis depois
+- ⚡ API própria em FastAPI, com documentação automática em `/docs`
+- 🖥️ Interface React desacoplada do backend — dá para trocar um sem mexer no outro
+
+## Stack
+
+| Camada | Tecnologia | Papel |
+|---|---|---|
+| Frontend | **React + Vite** | interface e build |
+| | **JavaScript / CSS** | lógica de tela e estilos |
+| Backend | **FastAPI** | API de cálculo e registro |
+| | **Uvicorn** | servidor ASGI |
+
+## Estrutura
+
+```
+geoquote/
 ├── backend-orcamentos/
-│   ├── main.py
-│   ├── requirements.txt
-│   └── venv/
+│   ├── main.py            → aplicação FastAPI
+│   └── requirements.txt
 │
-├── front-orcamentos/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── vite.config.js
-│
-└── doc.md
+└── front-orcamentos/
+    ├── src/               → componentes e telas
+    ├── public/
+    ├── package.json
+    └── vite.config.js
 ```
 
----
+## Como executar
 
-# Pré-requisitos
+O projeto sobe em **dois terminais**: um para a API, outro para a interface.
 
-Instale os seguintes softwares:
-
-- Node.js 20+ recomendado
-- Python 3.11+ recomendado
-- Git
-
-Verifique as versões:
-
-```bash
-node -v
-npm -v
-python --version
-git --version
-```
-
----
-
-# Clonando o Projeto
-
-```bash
-git clone <URL_DO_REPOSITORIO>
-cd registro-orcamentos
-```
-
----
-
-# Configuração do Backend
-
-Acesse a pasta:
+### 1. Backend
 
 ```bash
 cd backend-orcamentos
-```
 
-## Criar ambiente virtual
-
-Windows:
-
-```bash
 python -m venv venv
-```
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux / macOS
 
-## Ativar ambiente virtual
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-## Instalar dependências
-
-```bash
 pip install -r requirements.txt
-```
-
-## Executar Backend
-
-Caso utilize FastAPI:
-
-```bash
 uvicorn main:app --reload
 ```
 
-Servidor disponível em:
-
-```text
-http://localhost:8000
-```
-
-Documentação Swagger:
-
-```text
-http://localhost:8000/docs
-```
-
----
-
-# Configuração do Frontend
-
-Abra um novo terminal.
-
-Acesse a pasta:
+### 2. Frontend
 
 ```bash
 cd front-orcamentos
-```
-
-## Instalar dependências
-
-```bash
 npm install
-```
-
-## Executar ambiente de desenvolvimento
-
-```bash
 npm run dev
 ```
 
-O Vite exibirá algo semelhante a:
+### Endereços
 
-```text
-Local: http://localhost:5173/
-```
+| Serviço | URL |
+|---|---|
+| Interface | http://localhost:5173 |
+| API | http://localhost:8000 |
+| Documentação (Swagger) | http://localhost:8000/docs |
 
-Abra o endereço informado no navegador.
-
----
-
-# Build para Produção
-
-Dentro da pasta:
+## Build de produção
 
 ```bash
 cd front-orcamentos
-```
-
-Execute:
-
-```bash
 npm run build
 ```
 
-Os arquivos compilados serão gerados em:
+Os arquivos compilados vão para `front-orcamentos/dist`.
 
-```text
-front-orcamentos/dist
-```
+## Requisitos
 
----
+- Node.js 20+
+- Python 3.11+
+- Git
 
-# Atualizando Dependências
+## Roadmap
 
-Frontend:
-
-```bash
-npm update
-```
-
-Backend:
-
-```bash
-pip install -U -r requirements.txt
-```
+- [ ] Testes automatizados da regra de cálculo
+- [ ] Exportação do orçamento em PDF
+- [ ] Histórico com busca por cliente e período
 
 ---
 
-# Comandos Úteis
+Desenvolvido por **Matheus Ribeiro** (Zucka) · [@zuckalez0-oss](https://github.com/zuckalez0-oss) · [matribeiro.tech](https://matribeiro.tech)
 
-## Instalar nova dependência React
-
-```bash
-npm install nome-da-biblioteca
-```
-
-## Instalar nova dependência Python
-
-```bash
-pip install nome-do-pacote
-```
-
-Atualizar requirements:
-
-```bash
-pip freeze > requirements.txt
-```
-
----
-
-# Tecnologias Utilizadas
-
-## Frontend
-
-- React
-- Vite
-- JavaScript
-- CSS
-
-## Backend
-
-- Python
-- FastAPI
-- Uvicorn
-
----
-
-# Equipe
-
-Projeto desenvolvido para controle e registro de orçamentos.
-
-Autor: Matheus .A {ZipoLock}
