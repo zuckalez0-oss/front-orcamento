@@ -8,6 +8,8 @@
 -->
 
 # GeoQuote
+<img width="241" height="73" alt="image" src="https://github.com/user-attachments/assets/09d0c823-c96c-45c2-8080-b6dc00b693e2" />
+
 
 > Orçamento de peças cortadas a **laser, plasma e oxicorte** — da geometria ao preço, sem planilha intermediária.
 
