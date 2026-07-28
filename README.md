@@ -108,6 +108,17 @@ Os arquivos compilados vão para `front-orcamentos/dist`.
 - [ ] Histórico com busca por cliente e período
 
 ---
+# Demonstração:
+
+## Interface Principal v1.0.0
+<img width="1893" height="885" alt="image" src="https://github.com/user-attachments/assets/f7e01ee0-3ad8-41b7-9758-6050df9299f0" />
+
+---
+
+## Parâmetros Globais de Configuração
+<img width="1908" height="904" alt="image" src="https://github.com/user-attachments/assets/0be66ec6-01ad-4feb-8680-68532cdd6a5e" />
+
+---
 
 Desenvolvido por **Matheus Ribeiro** (Zucka) · [@zuckalez0-oss](https://github.com/zuckalez0-oss) · [matribeiro.tech](https://matribeiro.tech)
 
