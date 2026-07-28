@@ -12,9 +12,9 @@ e entrega ao `rectpack` blocos compostos já densos, em vez de triângulos avuls
 com 50% de desperdício cada. Ver `_compor_itens_triangulo`.
 """
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from rectpack import newPacker
+from rectpack import newPacker, GuillotineBssfSas, MaxRectsBl
 
 
 class NestingError(Exception):
@@ -27,6 +27,23 @@ class NestingError(Exception):
 LIMITE_INSTANCIAS = 2000
 
 TIPOS_TRIANGULO_COMPONIVEIS = ("reto", "isosceles")
+
+# Guilhotina (corte reto de borda a borda) exige um algoritmo que só produza
+# posições alcançáveis por divisão recursiva do espaço livre — é isso que os
+# algoritmos "Guillotine*" do rectpack garantem por construção (cada corte é uma
+# linha reta atravessando toda a seção atual). Bssf+Sas (Best Short Side Fit +
+# Shorter Axis Split) é a combinação de melhor desempenho médio reportada na
+# literatura de guillotine bin-packing (Jylänki 2010) e não expõe parâmetro
+# extra nenhum — por isso é a única variante usada aqui, sem necessidade de
+# tornar isso configurável.
+_PACK_ALGO_GUILHOTINA = GuillotineBssfSas
+
+# Laser/Plasma cortam qualquer forma, então não têm a restrição de guilhotina —
+# mas o algoritmo padrão anterior (MaxRects Best-Short-Side-Fit) intercala peças
+# de forma a deixar sobra fragmentada no meio da chapa. MaxRects Bottom-Left
+# consolida a sobra num bloco mais contíguo (heurística, não garantia geométrica
+# — ver CLAUDE.md/plano).
+_PACK_ALGO_PADRAO = MaxRectsBl
 
 
 def _compor_itens_triangulo(tipo_triangulo: str, base: float, altura: float,
@@ -89,11 +106,17 @@ def _compor_itens_triangulo(tipo_triangulo: str, base: float, altura: float,
 
 
 def nestear_pecas(pecas: List[Dict[str, Any]], largura_chapa: float, comprimento_chapa: float,
-                   margem: float, offset_peca: float) -> Dict[str, Any]:
+                   margem: float, offset_peca: float, maquina: Optional[str] = None) -> Dict[str, Any]:
     """
     pecas: lista de {"id": str, "qtd": int, "dimA": float, "dimB": float,
         "tipoPeca": str opcional, "tipoTriangulo": str opcional}
-    Retorna {"chapas_necessarias": int, "chapas": [{"placements": [
+    maquina: nome da máquina (ex: "LASER", "PLASMA", "GUILHOTINA") do grupo de
+        peças — vem do primeiro item do grupo espessura no chamador (main.py),
+        mesmo critério "primeira peça do grupo é representativa" já usado ali
+        para densidade_ref/preco_kg_ref. Só "GUILHOTINA" (case-insensitive) muda
+        o algoritmo de empacotamento; qualquer outro valor (ou None) usa o
+        padrão de sempre.
+    Retorna {"chapas_necessarias": int, "guilhotina": bool, "chapas": [{"placements": [
         {"id", "x", "y", "width", "height", "rotated", "invertido"}, ...
     ]}, ...]}
     Coordenadas (x, y, width, height) já são absolutas na chapa real (mm),
@@ -102,6 +125,7 @@ def nestear_pecas(pecas: List[Dict[str, Any]], largura_chapa: float, comprimento
     conjunto de vértices complementar (par/fileira interligados) — ver geometria.py
     e `nestingUtils.js::verticesTriangulo` no frontend.
     """
+    eh_guilhotina = (maquina or "").strip().upper() == "GUILHOTINA"
     largura_util = largura_chapa - 2 * margem
     comprimento_util = comprimento_chapa - 2 * margem
 
@@ -140,7 +164,7 @@ def nestear_pecas(pecas: List[Dict[str, Any]], largura_chapa: float, comprimento
         itens_packer.extend(_compor_itens_triangulo(tipo_triangulo, base, altura, ids, largura_util, comprimento_util))
 
     if not itens_packer:
-        return {"chapas_necessarias": 0, "chapas": []}
+        return {"chapas_necessarias": 0, "guilhotina": eh_guilhotina, "chapas": []}
 
     # 3) valida encaixe de cada item (mesma checagem de sempre, agora por item —
     # um par/fileira nunca é maior que o necessário para caber peça a peça).
@@ -163,7 +187,8 @@ def nestear_pecas(pecas: List[Dict[str, Any]], largura_chapa: float, comprimento
             "unidades por espessura para nesting em tempo real."
         )
 
-    packer = newPacker(rotation=True)
+    pack_algo = _PACK_ALGO_GUILHOTINA if eh_guilhotina else _PACK_ALGO_PADRAO
+    packer = newPacker(rotation=True, pack_algo=pack_algo)
     dims_originais = {}  # rid -> (largura_com_offset, altura_com_offset, largura_membro, membros)
 
     for rid, item in enumerate(itens_packer):
@@ -227,4 +252,4 @@ def nestear_pecas(pecas: List[Dict[str, Any]], largura_chapa: float, comprimento
 
         chapas.append({"placements": placements})
 
-    return {"chapas_necessarias": len(chapas), "chapas": chapas}
+    return {"chapas_necessarias": len(chapas), "guilhotina": eh_guilhotina, "chapas": chapas}

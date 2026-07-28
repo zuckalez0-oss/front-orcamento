@@ -3,15 +3,27 @@ import React, { useEffect, useState, Fragment } from 'react';
 import './App.css';
 import {
   corDaPeca, calcularFuros, furosAbsolutos,
-  areaCirculo, perimetroCirculo, areaTriangulo, perimetroTriangulo,
   verticesTriangulo, verticesTrianguloAbsolutos,
 } from './nestingUtils.js';
 import { gerarPdfNesting } from './nestingPdf.js';
+import { construirPeca } from './pecaUtils.js';
+import RapidEntryGrid from './RapidEntryGrid.jsx';
 import { supabase } from './lib/supabaseClient.js';
 import { useAuth } from './useAuth.js';
 import PerfilUsuario from './PerfilUsuario.jsx';
 
 const API_BASE = 'http://localhost:8000';
+
+// Lista fixa dos perfis de máquina suportados pelo motor de nesting (ver
+// nesting.py) — não deriva de maquinas_params porque um perfil precisa poder
+// ser selecionado no formulário de cadastro ANTES de existir qualquer linha
+// dele no banco (senão nunca dá pra cadastrar o primeiro parâmetro).
+const PERFIS_MAQUINA_SUPORTADOS = ['LASER', 'PLASMA', 'GUILHOTINA'];
+
+const ROTULOS_MAQUINA = { LASER: 'Laser', PLASMA: 'Plasma', GUILHOTINA: 'Guilhotina' };
+const rotuloMaquina = (maquina) => ROTULOS_MAQUINA[maquina] || maquina;
+const ROTULOS_MAQUINA_LONGO = { LASER: 'Laser CNC', PLASMA: 'Plasma HD', GUILHOTINA: 'Guilhotina' };
+const rotuloMaquinaLongo = (maquina) => ROTULOS_MAQUINA_LONGO[maquina] || maquina;
 
 // Desenha o contorno real da peça (retângulo, círculo ou triângulo) dentro de um
 // footprint x/y/width/height — usado tanto no preview de peça única quanto no
@@ -157,6 +169,7 @@ function App() {
   // 3. LISTA E CONTROLE DE EDIÇÃO
   const [listaPecas, setListaPecas] = useState([]);
   const [editandoIndex, setEditandoIndex] = useState(null);
+  const [modoEntrada, setModoEntrada] = useState('formulario'); // 'formulario' | 'rapida'
 
   // 4. CONTROLE DE TELAS E RESULTADOS
   const [telaAtual, setTelaAtual] = useState('formulario'); 
@@ -221,6 +234,18 @@ function App() {
       setEspessuraSelecionada(primeiro.espessura.toFixed(2));
     }
   }, [listaMaquinasParams]);
+
+  // Mesma sincronização acima, mas para o <select> de Material do formulário de
+  // CADASTRO de máquina/corte (aba Parâmetros Globais): sem isso, o select mostra
+  // visualmente a primeira opção (comportamento padrão do HTML quando o value
+  // controlado não bate com nenhuma option) mas o estado real fica '' até o
+  // usuário reselecionar manualmente — daí o formulário rejeitar o submit
+  // dizendo "preencha material" mesmo com um nome aparentemente selecionado.
+  useEffect(() => {
+    if (!formMaquina.material && listaMateriais.length > 0) {
+      setFormMaquina((prev) => ({ ...prev, material: listaMateriais[0].nome }));
+    }
+  }, [listaMateriais]);
 
   const maquinasParamsOrdenados = [...listaMaquinasParams].sort((a, b) => {
     if (a.maquina === b.maquina) {
@@ -510,55 +535,12 @@ function App() {
       return;
     }
 
-    const dimANum = parseFloat(dimA || 0);
-    const dimBNum = parseFloat(dimB || 0);
-    let areaBaseMm2;
-    let perimetroCorteMm;
-    if (dxfImportado && dxfAreaUtilMm2 > 0) {
-      areaBaseMm2 = dxfAreaUtilMm2;
-      perimetroCorteMm = dxfPerimetroCorteMm;
-    } else if (tipoPeca === 'C') {
-      areaBaseMm2 = areaCirculo(dimANum);
-      perimetroCorteMm = perimetroCirculo(dimANum);
-    } else if (tipoPeca === 'T') {
-      areaBaseMm2 = areaTriangulo(dimANum, dimBNum);
-      perimetroCorteMm = perimetroTriangulo(dimANum, dimBNum, tipoTriangulo);
-    } else {
-      areaBaseMm2 = dimANum * dimBNum;
-      perimetroCorteMm = 2 * (dimANum + dimBNum);
-    }
-    const volume = areaBaseMm2 * parseFloat(espessuraSelecionada || 0);
-    const pesoUnitario = (volume * (parametroAtual.densidade || 7.85)) / 1000000;
-    const pesoTotal = pesoUnitario * parseInt(qtd || 1);
-
-    const novaPeca = {
-      id,
-      qtd: parseInt(qtd),
-      tipoPeca,
-      tipoTriangulo: tipoPeca === 'T' ? tipoTriangulo : null,
-      maquina: maquinaSelecionada,
-      material: parametroAtual.material,
-      espessura: parametroAtual.espessura,
-      precoKgBase: parametroAtual.precoKg,
-      densidade: parametroAtual.densidade || 7.85,
-      velocidadeCorte: parametroAtual.velocidadeCorte,
-      valorHora: parametroAtual.valorHora,
-      tempoPiercing: parametroAtual.tempoPiercing,
-      tempoSetup: parametroAtual.tempoSetup,
-      dimA: dimANum || 0,
-      dimB: tipoPeca === 'C' ? (dimANum || 0) : (dimBNum || 0),
-      dimC: Number(dimC) || 0,
-      perimetroCorteMm,
-      areaUtilMm2: areaBaseMm2,
-      dxfImportado,
-      tipoFuro,
-      nFuros: parseInt(nFuros || 0),
-      diaFuro: Number(diaFuro) || 0,
-      furoOffsetX: tipoFuro !== 'manual' ? (Number(furoOffsetX) || 0) : 0,
-      furoOffsetY: tipoFuro !== 'manual' ? (Number(furoOffsetY) || 0) : 0,
-      pesoUnitario: pesoUnitario.toFixed(2),
-      pesoTotal: pesoTotal.toFixed(2)
-    };
+    const novaPeca = construirPeca({
+      id, qtd, tipoPeca, tipoTriangulo, maquina: maquinaSelecionada,
+      dimA, dimB, dimC,
+      tipoFuro, nFuros, diaFuro, furoOffsetX, furoOffsetY,
+      dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm,
+    }, parametroAtual);
 
     if (editandoIndex !== null) {
       const listaAtualizada = [...listaPecas];
@@ -891,8 +873,8 @@ function App() {
                     <div>
                       <label className="block text-xs font-bold surface-muted uppercase">Máquina</label>
                       <select value={formMaquina.maquina} onChange={(e) => atualizarFormMaquina('maquina', e.target.value)} className="input-field mt-1 w-full rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm">
-                        {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
-                          <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser' : 'Plasma'}</option>
+                        {PERFIS_MAQUINA_SUPORTADOS.map((maquina) => (
+                          <option key={maquina} value={maquina}>{rotuloMaquina(maquina)}</option>
                         ))}
                       </select>
                     </div>
@@ -1106,7 +1088,7 @@ function App() {
                     <label className="block text-[9px] font-bold uppercase tracking-wider surface-muted">Máquina</label>
                     <select value={maquinaSelecionada} onChange={(e) => selecionarMaquina(e.target.value)} className="input-field mt-0.5 w-full rounded-lg px-2 py-1.5 text-xs">
                       {(maquinasDisponiveis.length > 0 ? maquinasDisponiveis : ['LASER', 'PLASMA']).map((maquina) => (
-                        <option key={maquina} value={maquina}>{maquina === 'LASER' ? 'Laser CNC' : 'Plasma HD'}</option>
+                        <option key={maquina} value={maquina}>{rotuloMaquinaLongo(maquina)}</option>
                       ))}
                     </select>
                   </div>
@@ -1131,11 +1113,26 @@ function App() {
                   <h2 className="text-sm lg:text-base font-black surface-heading uppercase tracking-tight">
                     {editandoIndex !== null ? '✏️ Editando Peça' : 'Adicionar Peça'}
                   </h2>
-                  {editandoIndex !== null && (
+                  {editandoIndex !== null ? (
                     <button onClick={() => { setEditandoIndex(null); limparFormulario(); }} className="text-[10px] surface-muted hover:text-red-500 dark:hover:text-red-400 font-bold uppercase w-full sm:w-auto text-left sm:text-right">Cancelar Edição</button>
+                  ) : (
+                    <div className="flex rounded-full bg-slate-900/5 dark:bg-white/10 p-0.5 text-[10px] font-bold uppercase">
+                      <button onClick={() => setModoEntrada('formulario')} className={`px-3 py-1.5 rounded-full transition-colors ${modoEntrada === 'formulario' ? 'bg-orange-500 text-white' : 'surface-muted hover:text-orange-500'}`}>Formulário</button>
+                      <button onClick={() => setModoEntrada('rapida')} className={`px-3 py-1.5 rounded-full transition-colors ${modoEntrada === 'rapida' ? 'bg-orange-500 text-white' : 'surface-muted hover:text-orange-500'}`}>Entrada Rápida</button>
+                    </div>
                   )}
                 </div>
 
+                {modoEntrada === 'rapida' && editandoIndex === null ? (
+                  <RapidEntryGrid
+                    maquinasParamsOrdenados={maquinasParamsOrdenados}
+                    listaMateriais={listaMateriais}
+                    maquinaPadrao={maquinaSelecionada}
+                    materialPadrao={materialSelecionado}
+                    espessuraPadrao={espessuraSelecionada}
+                    onAdicionarPecas={(pecas) => setListaPecas((prev) => [...prev, ...pecas])}
+                  />
+                ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
                   <div className="xl:col-span-2 space-y-3">
@@ -1308,6 +1305,7 @@ function App() {
                     {renderPreviewPeca()}
                   </div>
                 </div>
+                )}
               </div>
             </div>
 

@@ -2,7 +2,7 @@
 // Reaproveita a mesma paleta/lógica de furos usada na visualização em SVG (nestingUtils.js),
 // então a cor de cada peça no PDF é sempre a mesma que aparece na tela.
 import { jsPDF } from 'jspdf';
-import { corDaPeca, furosAbsolutos } from './nestingUtils.js';
+import { corDaPeca, furosAbsolutos, verticesTrianguloAbsolutos } from './nestingUtils.js';
 
 const COR_LARANJA = '#F97316';
 const COR_TEXTO_PRIMARIO = '#0F172A';
@@ -99,7 +99,27 @@ function desenharChapa(doc, item, chapa, idsUnicosPecas, listaPecas) {
     doc.setFillColor(cor);
     doc.setDrawColor(cor);
     doc.setLineWidth(0.3);
-    doc.rect(px, py, pw, ph, 'FD');
+
+    // Desenha o contorno real da peça — mesma lógica de tipoPeca/vértices usada
+    // na tela (ContornoPeca em App.jsx) — em vez de sempre um retângulo.
+    let labelX = px + pw / 2;
+    let labelY = py + ph / 2;
+
+    if (pecaOriginal?.tipoPeca === 'C') {
+      doc.circle(px + pw / 2, py + ph / 2, pw / 2, 'FD');
+    } else if (pecaOriginal?.tipoPeca === 'T') {
+      const vertices = verticesTrianguloAbsolutos(p, pecaOriginal).map((v) => ({
+        x: offsetX + v.x * escala,
+        y: offsetY + v.y * escala,
+      }));
+      doc.triangle(vertices[0].x, vertices[0].y, vertices[1].x, vertices[1].y, vertices[2].x, vertices[2].y, 'FD');
+      // Centroide, não o centro da bounding box — no triângulo 'reto' o centro
+      // da bbox cai exatamente sobre a hipotenusa.
+      labelX = (vertices[0].x + vertices[1].x + vertices[2].x) / 3;
+      labelY = (vertices[0].y + vertices[1].y + vertices[2].y) / 3;
+    } else {
+      doc.rect(px, py, pw, ph, 'FD');
+    }
 
     furos.forEach((furo) => {
       if (furo.r <= 0) return;
@@ -112,7 +132,7 @@ function desenharChapa(doc, item, chapa, idsUnicosPecas, listaPecas) {
     if (pw > 6 && ph > 4) {
       doc.setFontSize(Math.min(8, Math.max(4, pw * 0.12)));
       doc.setTextColor('#FFFFFF');
-      doc.text(String(p.id), px + pw / 2, py + ph / 2, { align: 'center', baseline: 'middle' });
+      doc.text(String(p.id), labelX, labelY, { align: 'center', baseline: 'middle' });
     }
   });
 }

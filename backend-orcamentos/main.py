@@ -280,6 +280,9 @@ def calcular_orcamento(dados: OrcamentoPayload):
                 # agrupar por (material, espessura) — fora do escopo desta rodada.
                 "densidade_ref": peca.densidade,
                 "preco_kg_ref": peca.precoKgBase,
+                # Mesma limitação/precedente acima, aplicada à máquina: define o algoritmo
+                # de nesting (Guilhotina x padrão) do grupo inteiro pela PRIMEIRA peça.
+                "maquina_ref": peca.maquina,
             }
             pecas_por_espessura[espessura_str] = []
 
@@ -345,7 +348,8 @@ def calcular_orcamento(dados: OrcamentoPayload):
 
         try:
             resultado_nesting = nestear_pecas(
-                pecas_por_espessura[esp_str], largura_chapa, comprimento_chapa, margem_chapa, offset_peca
+                pecas_por_espessura[esp_str], largura_chapa, comprimento_chapa, margem_chapa, offset_peca,
+                maquina=dados_esp["maquina_ref"]
             )
         except NestingError as erro:
             raise HTTPException(status_code=400, detail=f"Espessura {esp_str}mm: {erro}")
