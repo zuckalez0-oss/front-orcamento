@@ -11,7 +11,7 @@ export function construirPeca(dados, parametroAtual) {
     id, qtd, tipoPeca, tipoTriangulo, maquina,
     dimA, dimB, dimC,
     tipoFuro, nFuros, diaFuro, furoOffsetX, furoOffsetY,
-    dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg,
+    dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg, dxfContorno,
   } = dados;
 
   const dimANum = parseFloat(dimA || 0);
@@ -58,6 +58,11 @@ export function construirPeca(dados, parametroAtual) {
     // Guarda o SVG real do DXF na própria peça (não só no estado do formulário)
     // pra "Editar" poder mostrar o desenho importado de novo, não só a caixa X/Y.
     dxfPreviewSvg: dxfImportado ? (dxfPreviewSvg || null) : null,
+    // Contorno real normalizado (perfis + furos, referencial local [0,dimA]x[0,dimB])
+    // vindo de /processar-dxf — usado só na hora de desenhar a peça já posicionada
+    // numa chapa de nesting (ver nestingUtils.js::contornoDxfAbsoluto). Nulo quando
+    // o DXF só tinha entidades não suportadas (ARC/SPLINE) — aí cai no retângulo.
+    contornoDxf: dxfImportado ? (dxfContorno || null) : null,
     tipoFuro,
     nFuros: parseInt(nFuros || 0),
     diaFuro: Number(diaFuro) || 0,

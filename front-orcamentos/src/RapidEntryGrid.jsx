@@ -16,7 +16,7 @@ function criarLinha(overrides = {}) {
     dimA: '', dimB: '', dimC: '',
     maquina: '', material: '', espessura: '',
     tipoFuro: 'manual', nFuros: '', diaFuro: '', furoOffsetX: '', furoOffsetY: '',
-    dxfImportado: false, dxfPreviewSvg: null, dxfAreaUtilMm2: 0, dxfPerimetroCorteMm: 0,
+    dxfImportado: false, dxfPreviewSvg: null, dxfAreaUtilMm2: 0, dxfPerimetroCorteMm: 0, dxfContorno: null,
     ...overrides,
   };
 }
@@ -201,7 +201,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
       tipoFuro: linha.tipoFuro, nFuros: linha.nFuros, diaFuro: linha.diaFuro,
       furoOffsetX: linha.furoOffsetX, furoOffsetY: linha.furoOffsetY,
       dxfImportado: linha.dxfImportado, dxfAreaUtilMm2: linha.dxfAreaUtilMm2, dxfPerimetroCorteMm: linha.dxfPerimetroCorteMm,
-      dxfPreviewSvg: linha.dxfPreviewSvg,
+      dxfPreviewSvg: linha.dxfPreviewSvg, dxfContorno: linha.dxfContorno,
     }, parametro));
 
     onAdicionarPecas(pecas);
@@ -289,6 +289,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
           dxfPreviewSvg: dados.svgMarkup || null,
           dxfAreaUtilMm2: Number(dados.areaUtilMm2 || 0),
           dxfPerimetroCorteMm: Number(dados.perimetroCorteMm || 0),
+          dxfContorno: dados.contorno || null,
         }));
       } catch {
         falhas.push(`${file.name}: falha de rede`);

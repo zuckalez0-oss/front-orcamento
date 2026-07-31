@@ -475,6 +475,17 @@ async def processar_dxf(file: UploadFile = File(...)):
             n_furos = 0
             dia_furo_ref = 0.0
 
+            # Referencial local do contorno normalizado: origem no canto
+            # superior-esquerdo da bounding box, eixo Y crescendo pra baixo —
+            # a MESMA convenção já usada por furosAbsolutos/verticesTriangulo
+            # no frontend (nestingUtils.js), pra poder reaproveitar o mesmo
+            # transform de posicionamento (translada + rotaciona 90°) na hora
+            # de desenhar a peça já posicionada numa chapa de nesting.
+            min_x_dxf = extents.extmin.x
+            max_y_dxf = extents.extmax.y
+            perfis_contorno = []
+            furos_contorno = []
+
             for entity in msp:
                 if entity.dxftype() == 'LWPOLYLINE' or entity.dxftype() == 'POLYLINE':
                     pontos = entity.get_points('xy')
@@ -487,11 +498,24 @@ async def processar_dxf(file: UploadFile = File(...)):
                         svg_elements.append(
                             f'<path d="{path}" fill="none" stroke="#00C4CC" stroke-width="2" stroke-linejoin="round" />')
 
+                        perfis_contorno.append({
+                            "pontos": [[round(p[0] - min_x_dxf, 3), round(max_y_dxf - p[1], 3)] for p in pontos],
+                            "fechado": bool(entity.closed),
+                        })
+
                 elif entity.dxftype() == 'LINE':
                     start = entity.dxf.start
                     end = entity.dxf.end
                     svg_elements.append(
                         f'<line x1="{start.x}" y1="{-start.y}" x2="{end.x}" y2="{-end.y}" stroke="#00C4CC" stroke-width="2" />')
+
+                    perfis_contorno.append({
+                        "pontos": [
+                            [round(start.x - min_x_dxf, 3), round(max_y_dxf - start.y, 3)],
+                            [round(end.x - min_x_dxf, 3), round(max_y_dxf - end.y, 3)],
+                        ],
+                        "fechado": False,
+                    })
 
                 elif entity.dxftype() == 'CIRCLE':
                     cx = entity.dxf.center.x
@@ -505,11 +529,27 @@ async def processar_dxf(file: UploadFile = File(...)):
                     svg_elements.append(
                         f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#00C4CC" stroke-width="2" />')
 
+                    furos_contorno.append({
+                        "cx": round(entity.dxf.center.x - min_x_dxf, 3),
+                        "cy": round(max_y_dxf - entity.dxf.center.y, 3),
+                        "r": round(r, 3),
+                    })
+
             min_x = extents.extmin.x
             min_y = -extents.extmax.y
 
             elements_str = "\n".join(svg_elements)
             svg_markup = f'<svg viewBox="{min_x - 5} {min_y - 5} {dim_a + 10} {dim_b + 10}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">{elements_str}</svg>'
+
+            # Contorno normalizado, aditivo — usado só pra desenhar a peça (real,
+            # não a bounding box) já posicionada numa chapa de nesting. ARC/SPLINE
+            # não são tesselados aqui (mesma limitação que o svg_markup acima já
+            # tinha); uma peça que só tenha esses tipos de entidade fica sem
+            # perfil e cai de volta no retângulo da bounding box, sem quebrar nada.
+            contorno = (
+                {"perfis": perfis_contorno, "furos": furos_contorno}
+                if (perfis_contorno or furos_contorno) else None
+            )
 
             return {
                 "sucesso": True,
@@ -517,7 +557,8 @@ async def processar_dxf(file: UploadFile = File(...)):
                 "dimB": dim_b,
                 "nFuros": n_furos,
                 "diaFuro": dia_furo_ref,
-                "svgMarkup": svg_markup
+                "svgMarkup": svg_markup,
+                "contorno": contorno
             }
 
         finally:

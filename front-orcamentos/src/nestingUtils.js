@@ -116,9 +116,73 @@ export function verticesTrianguloAbsolutos(placement, pecaOriginal) {
   });
 }
 
+// Área da bounding box de uma lista de pontos locais [[x,y],...] — usada só
+// para decidir qual perfil de um contorno DXF é o externo (ver contornoDxfAbsoluto).
+function areaBoundingBoxPontos(pontos) {
+  const xs = pontos.map((p) => p[0]);
+  const ys = pontos.map((p) => p[1]);
+  return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+}
+
+// Contorno REAL de uma peça importada de DXF (`pecaOriginal.contornoDxf`, ver
+// /processar-dxf e pecaUtils.js::construirPeca), já traduzido pra posição
+// absoluta na chapa — mesma transformação de translação+rotação 90° usada por
+// `verticesTrianguloAbsolutos`/`furosAbsolutos`. Retorna `null` quando a peça
+// não tem contorno (DXF só com ARC/SPLINE, ou peça não-DXF) — quem chama deve
+// cair de volta no retângulo/círculo/triângulo normal nesse caso.
+//
+// Heurística pra múltiplos perfis fechados (peça com rasgos/furos desenhados
+// como polilinha fechada, não só CIRCLE): o perfil fechado de maior bounding
+// box é o contorno EXTERNO da peça; os demais fechados são tratados como
+// "buracos" (preenchidos com o fundo, mesmo tratamento visual dos furos
+// circulares); perfis abertos residuais (ex: uma LINE solta) só são traçados,
+// nunca preenchidos. É uma simplificação pragmática, não topologia CAD genérica.
+export function contornoDxfAbsoluto(placement, pecaOriginal) {
+  const contorno = pecaOriginal?.contornoDxf;
+  if (!contorno || !Array.isArray(contorno.perfis) || contorno.perfis.length === 0) return null;
+
+  let indiceExterno = -1;
+  let maiorArea = -1;
+  contorno.perfis.forEach((perfil, indice) => {
+    if (!perfil.fechado || !perfil.pontos || perfil.pontos.length < 3) return;
+    const area = areaBoundingBoxPontos(perfil.pontos);
+    if (area > maiorArea) {
+      maiorArea = area;
+      indiceExterno = indice;
+    }
+  });
+
+  const dimB = pecaOriginal.dimB;
+  const transformar = (px, py) => {
+    const xAbs = placement.rotated ? (dimB - py) : px;
+    const yAbs = placement.rotated ? px : py;
+    return { x: placement.x + xAbs, y: placement.y + yAbs };
+  };
+
+  return {
+    perfis: contorno.perfis.map((perfil, indice) => ({
+      fechado: !!perfil.fechado,
+      externo: indice === indiceExterno,
+      pontos: (perfil.pontos || []).map(([px, py]) => transformar(px, py)),
+    })),
+  };
+}
+
 // Furos de uma peça já traduzidos para a posição absoluta na chapa (considera rotação 90°).
 export function furosAbsolutos(placement, pecaOriginal) {
   if (!pecaOriginal) return [];
+
+  // Peça DXF com furos reais (CIRCLE do próprio arquivo): usa as posições
+  // reais em vez da aproximação procedural abaixo (que é só pra peças
+  // desenhadas manualmente via tipoFuro/offsets).
+  const furosReaisDxf = pecaOriginal.contornoDxf?.furos;
+  if (Array.isArray(furosReaisDxf) && furosReaisDxf.length > 0) {
+    return furosReaisDxf.map((furo) => {
+      const cxAbs = placement.rotated ? (pecaOriginal.dimB - furo.cy) : furo.cx;
+      const cyAbs = placement.rotated ? furo.cx : furo.cy;
+      return { cx: placement.x + cxAbs, cy: placement.y + cyAbs, r: furo.r };
+    });
+  }
 
   const furosLocais = calcularFuros(
     pecaOriginal.tipoFuro, pecaOriginal.nFuros, pecaOriginal.diaFuro,

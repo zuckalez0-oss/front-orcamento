@@ -3,7 +3,7 @@ import React, { useEffect, useState, Fragment } from 'react';
 import './App.css';
 import {
   corDaPeca, calcularFuros, furosAbsolutos,
-  verticesTriangulo, verticesTrianguloAbsolutos,
+  verticesTriangulo, verticesTrianguloAbsolutos, contornoDxfAbsoluto,
 } from './nestingUtils.js';
 import { gerarPdfNesting } from './nestingPdf.js';
 import { construirPeca } from './pecaUtils.js';
@@ -30,7 +30,35 @@ const rotuloMaquinaLongo = (maquina) => ROTULOS_MAQUINA_LONGO[maquina] || maquin
 // nesting (ChapaSVG), pra evitar desenhar sempre um retângulo genérico.
 // `verticesAbsolutos`, quando informado, tem prioridade sobre width/height/tipoTriangulo
 // pro caso do triângulo (nesting já traz os vértices prontos, considerando rotação 90°).
-function ContornoPeca({ tipoPeca, tipoTriangulo, x, y, width, height, verticesAbsolutos, ...pathProps }) {
+function ContornoPeca({ tipoPeca, tipoTriangulo, x, y, width, height, verticesAbsolutos, contornoAbsoluto, ...pathProps }) {
+  // Peça importada de DXF com contorno real disponível: desenha a silhueta de
+  // verdade em vez do retângulo/círculo/triângulo genérico. `perfil.externo`
+  // marca o contorno de fora (preenchido com a cor da peça); perfis fechados
+  // não-externos são rasgos/furos internos (recorte, mesmo tratamento visual
+  // dos furos circulares); perfis abertos residuais só são traçados.
+  if (contornoAbsoluto && contornoAbsoluto.perfis.some((perfil) => perfil.externo)) {
+    return (
+      <>
+        {contornoAbsoluto.perfis.map((perfil, indice) => {
+          const pontos = perfil.pontos.map((v) => `${v.x},${v.y}`).join(' ');
+          if (perfil.externo) {
+            return <polygon key={indice} points={pontos} {...pathProps} />;
+          }
+          if (perfil.fechado) {
+            return (
+              <polygon
+                key={indice} points={pontos}
+                fill="#0A0A0A" stroke="rgba(255,255,255,0.25)"
+                strokeWidth={pathProps.strokeWidth ? pathProps.strokeWidth * 0.6 : undefined}
+              />
+            );
+          }
+          return <polyline key={indice} points={pontos} fill="none" stroke={pathProps.stroke} strokeWidth={pathProps.strokeWidth} />;
+        })}
+      </>
+    );
+  }
+
   if (tipoPeca === 'C') {
     return <circle cx={x + width / 2} cy={y + height / 2} r={width / 2} {...pathProps} />;
   }
@@ -68,6 +96,7 @@ function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, clas
         const corPeca = corDaPeca(p.id, idsUnicosPecas);
         const pecaOriginal = listaPecas.find((pc) => pc.id === p.id);
         const furos = furosAbsolutos(p, pecaOriginal);
+        const contornoAbsoluto = pecaOriginal?.dxfImportado ? contornoDxfAbsoluto(p, pecaOriginal) : null;
 
         return (
           <g key={pIndex}>
@@ -76,6 +105,7 @@ function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, clas
               tipoTriangulo={pecaOriginal?.tipoTriangulo}
               x={p.x} y={p.y} width={p.width} height={p.height}
               verticesAbsolutos={pecaOriginal?.tipoPeca === 'T' ? verticesTrianguloAbsolutos(p, pecaOriginal) : undefined}
+              contornoAbsoluto={contornoAbsoluto}
               fill={corPeca} fillOpacity="0.45" stroke={corPeca}
               strokeWidth={strokeW}
             />
@@ -165,6 +195,7 @@ function App() {
   const [dxfImportado, setDxfImportado] = useState(false);
   const [dxfPerimetroCorteMm, setDxfPerimetroCorteMm] = useState(0);
   const [dxfAreaUtilMm2, setDxfAreaUtilMm2] = useState(0);
+  const [dxfContorno, setDxfContorno] = useState(null);
 
   // 3. LISTA E CONTROLE DE EDIÇÃO
   const [listaPecas, setListaPecas] = useState([]);
@@ -180,6 +211,7 @@ function App() {
   const [isModalChapasOpen, setIsModalChapasOpen] = useState(false);
   const [chapasConfig, setChapasConfig] = useState({});
   const [chapaExpandida, setChapaExpandida] = useState(null); // { item, chapa, chapaIndex } | null
+  const [orientacaoPdf, setOrientacaoPdf] = useState('retrato'); // 'retrato' | 'paisagem' — usado no PDF do plano de corte
 
   const carregarMateriais = async () => {
     try {
@@ -506,6 +538,7 @@ function App() {
       setDxfImportado(false);
       setDxfPerimetroCorteMm(0);
       setDxfAreaUtilMm2(0);
+      setDxfContorno(null);
 
       try {
         const dados = await processarArquivoDxf(file);
@@ -524,6 +557,7 @@ function App() {
         setDxfPreviewSvg(dados.svgMarkup);
         setDxfPerimetroCorteMm(Number(dados.perimetroCorteMm || 0));
         setDxfAreaUtilMm2(Number(dados.areaUtilMm2 || 0));
+        setDxfContorno(dados.contorno || null);
         setDxfImportado(true);
 
         setIsUploadingDxf(false);
@@ -560,7 +594,7 @@ function App() {
           dimA: dados.dimA, dimB: dados.dimB, dimC: 0,
           tipoFuro: 'manual', nFuros: dados.nFuros || 0, diaFuro: dados.diaFuro || 0, furoOffsetX: 0, furoOffsetY: 0,
           dxfImportado: true, dxfAreaUtilMm2: Number(dados.areaUtilMm2 || 0), dxfPerimetroCorteMm: Number(dados.perimetroCorteMm || 0),
-          dxfPreviewSvg: dados.svgMarkup,
+          dxfPreviewSvg: dados.svgMarkup, dxfContorno: dados.contorno || null,
         }, parametroAtual));
       } catch {
         falhas.push(`${file.name}: falha de rede`);
@@ -591,7 +625,7 @@ function App() {
       id, qtd, tipoPeca, tipoTriangulo, maquina: maquinaSelecionada,
       dimA, dimB, dimC,
       tipoFuro, nFuros, diaFuro, furoOffsetX, furoOffsetY,
-      dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg,
+      dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg, dxfContorno,
     }, parametroAtual);
 
     if (editandoIndex !== null) {
@@ -613,6 +647,7 @@ function App() {
     setDxfImportado(false);
     setDxfPerimetroCorteMm(0);
     setDxfAreaUtilMm2(0);
+    setDxfContorno(null);
 
     const maquinaPadrao = maquinasDisponiveis[0] || 'LASER';
     setMaquinaSelecionada(maquinaPadrao);
@@ -688,6 +723,7 @@ function App() {
     setDxfPreviewSvg(peca.dxfImportado ? (peca.dxfPreviewSvg || null) : null);
     setDxfAreaUtilMm2(peca.dxfImportado ? Number(peca.areaUtilMm2 || 0) : 0);
     setDxfPerimetroCorteMm(peca.dxfImportado ? Number(peca.perimetroCorteMm || 0) : 0);
+    setDxfContorno(peca.dxfImportado ? (peca.contornoDxf || null) : null);
 
     setEditandoIndex(index);
   };
@@ -1672,12 +1708,30 @@ function App() {
                   <div className="mt-8 space-y-6 print:hidden">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base lg:text-lg font-black surface-heading">🧩 Visualização de Nesting</h3>
-                      <button
-                        onClick={() => gerarPdfNesting(resultadoOrcamento, listaPecas, cliente)}
-                        className="text-xs lg:text-sm bg-orange-500 text-white px-4 py-2 rounded-full font-bold shadow hover:bg-orange-600 transition-colors"
-                      >
-                        📄 Baixar PDF do Nesting
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="flex rounded-full bg-slate-900/5 dark:bg-white/10 p-0.5 text-[10px] font-bold uppercase">
+                          <button
+                            type="button"
+                            onClick={() => setOrientacaoPdf('retrato')}
+                            className={`px-3 py-1.5 rounded-full transition-colors ${orientacaoPdf === 'retrato' ? 'bg-orange-500 text-white' : 'surface-muted hover:text-orange-500'}`}
+                          >
+                            Retrato
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOrientacaoPdf('paisagem')}
+                            className={`px-3 py-1.5 rounded-full transition-colors ${orientacaoPdf === 'paisagem' ? 'bg-orange-500 text-white' : 'surface-muted hover:text-orange-500'}`}
+                          >
+                            Paisagem
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => gerarPdfNesting(resultadoOrcamento, listaPecas, cliente, undefined, orientacaoPdf)}
+                          className="text-xs lg:text-sm bg-orange-500 text-white px-4 py-2 rounded-full font-bold shadow hover:bg-orange-600 transition-colors"
+                        >
+                          📄 Baixar PDF do Nesting
+                        </button>
+                      </div>
                     </div>
                     {resultadoOrcamento.detalhamento_espessuras.map((item, index) => (
                       item.nesting && item.nesting.chapas.length > 0 && (
@@ -1820,7 +1874,7 @@ function App() {
               </h3>
               <div className="flex gap-2">
                 <button
-                  onClick={() => gerarPdfNesting(resultadoOrcamento, listaPecas, cliente, chapaExpandida.item.espessura)}
+                  onClick={() => gerarPdfNesting(resultadoOrcamento, listaPecas, cliente, chapaExpandida.item.espessura, orientacaoPdf)}
                   className="text-xs lg:text-sm bg-orange-500 text-white px-4 py-2 rounded-full font-bold hover:bg-orange-600 transition-colors"
                 >
                   📄 Baixar PDF
