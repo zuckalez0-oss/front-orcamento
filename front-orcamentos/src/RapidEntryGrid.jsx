@@ -16,6 +16,7 @@ function criarLinha(overrides = {}) {
     dimA: '', dimB: '', dimC: '',
     maquina: '', material: '', espessura: '',
     tipoFuro: 'manual', nFuros: '', diaFuro: '', furoOffsetX: '', furoOffsetY: '',
+    dxfImportado: false, dxfPreviewSvg: null, dxfAreaUtilMm2: 0, dxfPerimetroCorteMm: 0,
     ...overrides,
   };
 }
@@ -67,12 +68,48 @@ function parseCsvPecas(texto) {
   });
 }
 
+// Parser de JSON: aceita um array de peças ou `{ "pecas": [...] }`. Mais expressivo
+// que o CSV — permite mandar também furação (tipoFuro/nFuros/diaFuro/offsets).
+// Retorna null quando o JSON é inválido/não reconhecível (distinto de "vazio").
+function parseJsonPecas(texto) {
+  let dados;
+  try {
+    dados = JSON.parse(texto);
+  } catch {
+    return null;
+  }
+  const lista = Array.isArray(dados) ? dados : (Array.isArray(dados?.pecas) ? dados.pecas : null);
+  if (!lista) return null;
+
+  return lista.map((item) => criarLinha({
+    id: item.id || item.identificador || '',
+    qtd: String(item.qtd ?? item.quantidade ?? 1),
+    tipoPeca: item.geometria || item.tipoPeca || 'R',
+    tipoTriangulo: item.tipoTriangulo || 'reto',
+    dimA: item.dimA != null ? String(item.dimA) : '',
+    dimB: item.dimB != null ? String(item.dimB) : '',
+    dimC: item.dimC != null ? String(item.dimC) : '',
+    maquina: item.maquina || '',
+    material: item.material || '',
+    espessura: item.espessura != null ? Number(item.espessura).toFixed(2) : '',
+    tipoFuro: item.tipoFuro || 'manual',
+    nFuros: item.nFuros != null ? String(item.nFuros) : '',
+    diaFuro: item.diaFuro != null ? String(item.diaFuro) : '',
+    furoOffsetX: item.furoOffsetX != null ? String(item.furoOffsetX) : '',
+    furoOffsetY: item.furoOffsetY != null ? String(item.furoOffsetY) : '',
+  }));
+}
+
 export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais, maquinaPadrao, materialPadrao, espessuraPadrao, onAdicionarPecas }) {
   const [linhas, setLinhas] = useState(() => [
     criarLinha({ maquina: maquinaPadrao || '', material: materialPadrao || '', espessura: espessuraPadrao || '' }),
   ]);
   const [furoAbertoKey, setFuroAbertoKey] = useState(null);
+  const [isImportandoDxf, setIsImportandoDxf] = useState(false);
+  const [dxfPreviewAberto, setDxfPreviewAberto] = useState(null); // { id, svg } | null
   const inputCsvRef = useRef(null);
+  const inputJsonRef = useRef(null);
+  const inputDxfRef = useRef(null);
 
   const maquinasDisponiveis = maquinasDaLista(maquinasParamsOrdenados).length > 0
     ? maquinasDaLista(maquinasParamsOrdenados) : ['LASER', 'PLASMA'];
@@ -163,7 +200,8 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
       dimA: linha.dimA, dimB: linha.dimB, dimC: linha.dimC,
       tipoFuro: linha.tipoFuro, nFuros: linha.nFuros, diaFuro: linha.diaFuro,
       furoOffsetX: linha.furoOffsetX, furoOffsetY: linha.furoOffsetY,
-      dxfImportado: false, dxfAreaUtilMm2: 0, dxfPerimetroCorteMm: 0,
+      dxfImportado: linha.dxfImportado, dxfAreaUtilMm2: linha.dxfAreaUtilMm2, dxfPerimetroCorteMm: linha.dxfPerimetroCorteMm,
+      dxfPreviewSvg: linha.dxfPreviewSvg,
     }, parametro));
 
     onAdicionarPecas(pecas);
@@ -196,6 +234,76 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
     e.target.value = '';
   };
 
+  const handleImportarJson = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const novasLinhas = parseJsonPecas(String(reader.result || ''));
+      if (novasLinhas === null) {
+        alert('JSON inválido. Envie um array de peças (ou { "pecas": [...] }) com campos como id, geometria, dimA, dimB, qtd, maquina, material, espessura.');
+        return;
+      }
+      if (novasLinhas.length === 0) {
+        alert('JSON sem peças reconhecíveis.');
+        return;
+      }
+      setLinhas((prev) => [...prev, ...novasLinhas]);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Cada DXF selecionado vira uma linha própria já preenchida (identificador =
+  // nome do arquivo, dimA/dimB/furos vindos do bounding box lido pelo backend),
+  // igual ao comportamento de importação múltipla do Formulário em App.jsx.
+  const handleImportarDxf = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setIsImportandoDxf(true);
+    const novasLinhas = [];
+    const falhas = [];
+
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const resposta = await fetch('http://localhost:8000/processar-dxf', { method: 'POST', body: formData });
+        const dados = await resposta.json();
+
+        if (!dados.sucesso) {
+          falhas.push(`${file.name}: ${dados.erro || 'erro desconhecido'}`);
+          continue;
+        }
+
+        novasLinhas.push(criarLinha({
+          id: file.name.replace(/\.dxf$/i, ''),
+          dimA: String(dados.dimA ?? ''),
+          dimB: String(dados.dimB ?? ''),
+          nFuros: dados.nFuros ? String(dados.nFuros) : '',
+          diaFuro: dados.diaFuro ? String(dados.diaFuro) : '',
+          maquina: maquinaPadrao || '', material: materialPadrao || '', espessura: espessuraPadrao || '',
+          dxfImportado: true,
+          dxfPreviewSvg: dados.svgMarkup || null,
+          dxfAreaUtilMm2: Number(dados.areaUtilMm2 || 0),
+          dxfPerimetroCorteMm: Number(dados.perimetroCorteMm || 0),
+        }));
+      } catch {
+        falhas.push(`${file.name}: falha de rede`);
+      }
+    }
+
+    if (novasLinhas.length > 0) {
+      setLinhas((prev) => [...prev, ...novasLinhas]);
+    }
+    setIsImportandoDxf(false);
+    if (falhas.length > 0) {
+      alert(`${novasLinhas.length} DXF(s) importado(s). Falha(s):\n${falhas.join('\n')}`);
+    }
+  };
+
   const inputCls = 'input-field w-full rounded px-1.5 py-1 text-[11px]';
   const inputInvalidoCls = 'border-red-500/70 focus:border-red-500';
 
@@ -210,6 +318,14 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
             ⇪ Importar CSV
           </button>
           <input ref={inputCsvRef} type="file" accept=".csv,text/csv" onChange={handleImportarCsv} className="hidden" />
+          <button type="button" onClick={() => inputJsonRef.current?.click()} className="text-[10px] bg-slate-900/5 dark:bg-white/10 surface-body px-2.5 py-1.5 rounded-full font-bold hover:bg-slate-900/10 dark:hover:bg-white/20">
+            ⇪ Importar JSON
+          </button>
+          <input ref={inputJsonRef} type="file" accept=".json,application/json" onChange={handleImportarJson} className="hidden" />
+          <button type="button" onClick={() => inputDxfRef.current?.click()} disabled={isImportandoDxf} className="text-[10px] bg-slate-900/5 dark:bg-white/10 surface-body px-2.5 py-1.5 rounded-full font-bold hover:bg-slate-900/10 dark:hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed">
+            {isImportandoDxf ? 'Analisando DXF...' : '⇪ Importar DXF'}
+          </button>
+          <input ref={inputDxfRef} type="file" accept=".dxf" multiple onChange={handleImportarDxf} className="hidden" />
           <button type="button" disabled title="Em breve: importação de planilhas .xlsx" className="text-[10px] bg-slate-900/5 dark:bg-white/10 surface-muted px-2.5 py-1.5 rounded-full font-bold opacity-50 cursor-not-allowed">
             ⇪ Importar Excel (em breve)
           </button>
@@ -259,6 +375,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
                         onKeyDown={(e) => handleKeyDownCelula(e, linha.key)}
                         className={`${inputCls} ${idInvalido ? inputInvalidoCls : ''}`}
                       />
+                      {linha.dxfImportado && <span className="block text-[8px] font-black text-orange-500 mt-0.5">⛭ DXF</span>}
                     </td>
                     <td className="p-1">
                       <select
@@ -291,6 +408,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
                       <input
                         id={`re-${linha.key}-dimA`}
                         type="number" value={linha.dimA} placeholder={linha.tipoPeca === 'C' ? 'Ø' : 'X'}
+                        disabled={linha.dxfImportado}
                         onChange={(e) => atualizarLinha(linha.key, 'dimA', e.target.value)}
                         onKeyDown={(e) => handleKeyDownCelula(e, linha.key)}
                         className={`${inputCls} ${dimAInvalida ? inputInvalidoCls : ''}`}
@@ -300,7 +418,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
                       <input
                         id={`re-${linha.key}-dimB`}
                         type="number" value={linha.tipoPeca === 'C' ? '' : linha.dimB} placeholder="Y"
-                        disabled={linha.tipoPeca === 'C'}
+                        disabled={linha.tipoPeca === 'C' || linha.dxfImportado}
                         onChange={(e) => atualizarLinha(linha.key, 'dimB', e.target.value)}
                         onKeyDown={(e) => handleKeyDownCelula(e, linha.key)}
                         className={`${inputCls} ${dimBInvalida ? inputInvalidoCls : ''}`}
@@ -359,6 +477,9 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
                       </button>
                     </td>
                     <td className="p-1 text-right whitespace-nowrap">
+                      {linha.dxfImportado && (
+                        <button type="button" title="Ver DXF importado" onClick={() => setDxfPreviewAberto({ id: linha.id, svg: linha.dxfPreviewSvg })} className="text-[11px] px-1.5 py-1 rounded text-orange-500 hover:bg-orange-500/10">👁</button>
+                      )}
                       <button type="button" title="Duplicar linha" onClick={() => duplicarLinha(linha.key)} className="text-[11px] px-1.5 py-1 rounded hover:bg-slate-900/10 dark:hover:bg-white/10">⎘</button>
                       <button type="button" title="Remover linha" onClick={() => removerLinha(linha.key)} className="text-[11px] px-1.5 py-1 rounded text-red-500 hover:bg-red-500/10">✕</button>
                     </td>
@@ -432,6 +553,21 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
       >
         Adicionar {totalProntas} peça{totalProntas === 1 ? '' : 's'} à lista →
       </button>
+
+      {dxfPreviewAberto && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setDxfPreviewAberto(null)}>
+          <div className="bg-[#0d1626] border border-slate-700 rounded-2xl p-4 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-bold text-orange-400">DXF importado: {dxfPreviewAberto.id}</span>
+              <button type="button" onClick={() => setDxfPreviewAberto(null)} className="text-slate-400 hover:text-white text-sm font-bold px-1">✕</button>
+            </div>
+            <div
+              className="w-full h-64 flex items-center justify-center bg-black/20 rounded-lg"
+              dangerouslySetInnerHTML={{ __html: (dxfPreviewAberto.svg || '').replace(/#00C4CC/g, '#F97316') }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -43,7 +43,8 @@ function desenharCabecalho(doc, { cliente, item, chapaIndex, totalChapasEspessur
 
   if (item.utilizacao_pct !== undefined) {
     const pageW2 = doc.internal.pageSize.width;
-    const linhaAproveitamento = `${item.utilizacao_pct}% aproveitamento  ·  ${item.sucata_peso_kg}kg sucata (espessura)`;
+    const rotuloSucata = item.sobra_reservada_cliente ? 'sobra reservada p/ cliente' : 'sucata (espessura)';
+    const linhaAproveitamento = `${item.utilizacao_pct}% aproveitamento  ·  ${item.sucata_peso_kg}kg ${rotuloSucata}`;
     doc.text(linhaAproveitamento, pageW2 - MARGEM_PAGINA, 27, { align: 'right' });
   }
 }

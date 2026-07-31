@@ -196,6 +196,14 @@ class ConfigChapa(BaseModel):
     comprimento: float
     margem: float = 10.0
     offsetPeca: float = 5.0
+    # Override da máquina usada no nesting desta espessura (ex: força GUILHOTINA
+    # mesmo que as peças do grupo estejam com outra máquina). None = mantém o
+    # comportamento antigo (usa a máquina da 1ª peça do grupo, "maquina_ref").
+    maquina: Optional[str] = None
+    # Não muda nenhum cálculo — só re-rotula a métrica de sucata já existente
+    # (Controle de Sobras) como "sobra reservada para o cliente" no relatório,
+    # em vez de descarte.
+    clienteQuerSobra: bool = False
 
 
 class Peca(BaseModel):
@@ -346,10 +354,12 @@ def calcular_orcamento(dados: OrcamentoPayload):
         margem_chapa = config_chapa.margem if config_chapa else 10.0
         offset_peca = config_chapa.offsetPeca if config_chapa else 5.0
 
+        maquina_para_nesting = (config_chapa.maquina if config_chapa and config_chapa.maquina else dados_esp["maquina_ref"])
+
         try:
             resultado_nesting = nestear_pecas(
                 pecas_por_espessura[esp_str], largura_chapa, comprimento_chapa, margem_chapa, offset_peca,
-                maquina=dados_esp["maquina_ref"]
+                maquina=maquina_para_nesting
             )
         except NestingError as erro:
             raise HTTPException(status_code=400, detail=f"Espessura {esp_str}mm: {erro}")
@@ -383,6 +393,8 @@ def calcular_orcamento(dados: OrcamentoPayload):
         dados_esp["chapa_margem"] = margem_chapa
         dados_esp["custo_total_espessura"] = dados_esp["custo_material"] + dados_esp["custo_maquina"]
         dados_esp["nesting"] = resultado_nesting
+        dados_esp["maquina"] = maquina_para_nesting
+        dados_esp["sobra_reservada_cliente"] = bool(config_chapa.clienteQuerSobra) if config_chapa else False
 
         # Controle de Sobras: área/peso de chapa consumida que não virou peça —
         # já está pago (custo_material fatura a chapa inteira), isso é só a métrica

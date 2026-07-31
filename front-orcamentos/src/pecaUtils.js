@@ -11,7 +11,7 @@ export function construirPeca(dados, parametroAtual) {
     id, qtd, tipoPeca, tipoTriangulo, maquina,
     dimA, dimB, dimC,
     tipoFuro, nFuros, diaFuro, furoOffsetX, furoOffsetY,
-    dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm,
+    dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg,
   } = dados;
 
   const dimANum = parseFloat(dimA || 0);
@@ -55,6 +55,9 @@ export function construirPeca(dados, parametroAtual) {
     perimetroCorteMm,
     areaUtilMm2: areaBaseMm2,
     dxfImportado: !!dxfImportado,
+    // Guarda o SVG real do DXF na própria peça (não só no estado do formulário)
+    // pra "Editar" poder mostrar o desenho importado de novo, não só a caixa X/Y.
+    dxfPreviewSvg: dxfImportado ? (dxfPreviewSvg || null) : null,
     tipoFuro,
     nFuros: parseInt(nFuros || 0),
     diaFuro: Number(diaFuro) || 0,

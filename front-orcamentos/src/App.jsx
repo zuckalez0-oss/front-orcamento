@@ -479,51 +479,103 @@ function App() {
     setEspessuraSelecionada(primeiroParametroDaMaquina ? primeiroParametroDaMaquina.espessura.toFixed(2) : '');
   };
 
+  const processarArquivoDxf = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const resposta = await fetch('http://localhost:8000/processar-dxf', {
+      method: 'POST',
+      body: formData
+    });
+    return resposta.json();
+  };
+
   const handleDxfUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // permite reimportar o(s) mesmo(s) arquivo(s) em seguida
 
-    setDxfFile(file);
-    setIsUploadingDxf(true);
-    setDxfErro(null);
-    setDxfPreviewSvg(null);
-    setDxfImportado(false);
-    setDxfPerimetroCorteMm(0);
-    setDxfAreaUtilMm2(0);
+    if (files.length === 0) return;
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    // Um único arquivo: mantém o fluxo tradicional, populando o formulário pra
+    // revisão antes de "Adicionar Peça" (permite ajustar qtd/furos/etc).
+    if (files.length === 1) {
+      const file = files[0];
+      setDxfFile(file);
+      setIsUploadingDxf(true);
+      setDxfErro(null);
+      setDxfPreviewSvg(null);
+      setDxfImportado(false);
+      setDxfPerimetroCorteMm(0);
+      setDxfAreaUtilMm2(0);
 
-      const resposta = await fetch('http://localhost:8000/processar-dxf', {
-        method: 'POST',
-        body: formData
-      });
+      try {
+        const dados = await processarArquivoDxf(file);
 
-      const dados = await resposta.json();
+        if (!dados.sucesso) {
+          setDxfErro(dados.erro || "O arquivo contém erros ou geometria aberta.");
+          setIsUploadingDxf(false);
+          return;
+        }
 
-      if (!dados.sucesso) {
-        setDxfErro(dados.erro || "O arquivo contém erros ou geometria aberta.");
+        setDimA(dados.dimA);
+        setDimB(dados.dimB);
+        setNFuros(dados.nFuros || '');
+        setDiaFuro(dados.diaFuro || '');
+        setId(file.name.replace(/\.dxf$/i, ''));
+        setDxfPreviewSvg(dados.svgMarkup);
+        setDxfPerimetroCorteMm(Number(dados.perimetroCorteMm || 0));
+        setDxfAreaUtilMm2(Number(dados.areaUtilMm2 || 0));
+        setDxfImportado(true);
+
         setIsUploadingDxf(false);
-        return;
+
+      } catch (error) {
+        console.error("Erro ao processar DXF", error);
+        setDxfErro("Falha de rede ao tentar comunicar com o motor de processamento.");
+        setIsUploadingDxf(false);
       }
+      return;
+    }
 
-      setDimA(dados.dimA);
-      setDimB(dados.dimB);
-      setNFuros(dados.nFuros || '');  
-      setDiaFuro(dados.diaFuro || '');  
-      setId(file.name.replace('.dxf', ''));
-      setDxfPreviewSvg(dados.svgMarkup);
-      setDxfPerimetroCorteMm(Number(dados.perimetroCorteMm || 0));
-      setDxfAreaUtilMm2(Number(dados.areaUtilMm2 || 0));
-      setDxfImportado(true);
-      
-      setIsUploadingDxf(false);
+    // Vários arquivos de uma vez: não dá pra revisar um por um no formulário
+    // único, então cada DXF já vira uma peça própria (qtd=1) direto na lista,
+    // usando a máquina/material/espessura selecionados no momento.
+    if (!parametroAtual) {
+      alert('Cadastre uma parametrização para o material e a espessura selecionados antes de importar vários DXFs.');
+      return;
+    }
 
-    } catch (error) {
-      console.error("Erro ao processar DXF", error);
-      setDxfErro("Falha de rede ao tentar comunicar com o motor de processamento.");
-      setIsUploadingDxf(false);
+    setIsUploadingDxf(true);
+    const novasPecas = [];
+    const falhas = [];
+
+    for (const file of files) {
+      try {
+        const dados = await processarArquivoDxf(file);
+        if (!dados.sucesso) {
+          falhas.push(`${file.name}: ${dados.erro || 'erro desconhecido'}`);
+          continue;
+        }
+        novasPecas.push(construirPeca({
+          id: file.name.replace(/\.dxf$/i, ''), qtd: 1, tipoPeca, tipoTriangulo, maquina: maquinaSelecionada,
+          dimA: dados.dimA, dimB: dados.dimB, dimC: 0,
+          tipoFuro: 'manual', nFuros: dados.nFuros || 0, diaFuro: dados.diaFuro || 0, furoOffsetX: 0, furoOffsetY: 0,
+          dxfImportado: true, dxfAreaUtilMm2: Number(dados.areaUtilMm2 || 0), dxfPerimetroCorteMm: Number(dados.perimetroCorteMm || 0),
+          dxfPreviewSvg: dados.svgMarkup,
+        }, parametroAtual));
+      } catch {
+        falhas.push(`${file.name}: falha de rede`);
+      }
+    }
+
+    if (novasPecas.length > 0) {
+      setListaPecas((prev) => [...prev, ...novasPecas]);
+    }
+    setIsUploadingDxf(false);
+
+    if (falhas.length > 0) {
+      alert(`${novasPecas.length} peça(s) importada(s) de DXF. Falha(s):\n${falhas.join('\n')}`);
+    } else {
+      alert(`${novasPecas.length} peça(s) importada(s) de DXF com sucesso.`);
     }
   };
 
@@ -539,7 +591,7 @@ function App() {
       id, qtd, tipoPeca, tipoTriangulo, maquina: maquinaSelecionada,
       dimA, dimB, dimC,
       tipoFuro, nFuros, diaFuro, furoOffsetX, furoOffsetY,
-      dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm,
+      dxfImportado, dxfAreaUtilMm2, dxfPerimetroCorteMm, dxfPreviewSvg,
     }, parametroAtual);
 
     if (editandoIndex !== null) {
@@ -582,7 +634,7 @@ function App() {
     const configInicial = {};
     
     espessurasUnicas.forEach(esp => {
-      configInicial[esp] = { largura: 1200, comprimento: 3000, margem: 10, offsetPeca: 5 };
+      configInicial[esp] = { largura: 1200, comprimento: 3000, margem: 10, offsetPeca: 5, maquina: 'LASER', clienteQuerSobra: false };
     });
     
     setChapasConfig(configInicial);
@@ -594,6 +646,14 @@ function App() {
       ...prev,
       [esp]: { ...prev[esp], [campo]: parseFloat(valor) || 0 }
     }));
+  };
+
+  const handleChapaMaquinaChange = (esp, valor) => {
+    setChapasConfig(prev => ({ ...prev, [esp]: { ...prev[esp], maquina: valor } }));
+  };
+
+  const handleChapaSobraChange = (esp, valor) => {
+    setChapasConfig(prev => ({ ...prev, [esp]: { ...prev[esp], clienteQuerSobra: valor } }));
   };
 
   const baixarPDF = () => {
@@ -619,6 +679,16 @@ function App() {
     setEspessuraSelecionada(Number(peca.espessura).toFixed(2));
     setDimA(peca.dimA); setDimB(peca.dimB); setDimC(peca.dimC); setNFuros(peca.nFuros); setDiaFuro(peca.diaFuro);
     setTipoFuro(peca.tipoFuro || 'manual'); setFuroOffsetX(peca.furoOffsetX); setFuroOffsetY(peca.furoOffsetY);
+
+    // Restaura o preview real do DXF (se essa peça veio de um import) — sem isso
+    // o formulário de edição mostrava só a caixa X/Y genérica, não o desenho original.
+    setDxfFile(null);
+    setDxfErro(null);
+    setDxfImportado(!!peca.dxfImportado);
+    setDxfPreviewSvg(peca.dxfImportado ? (peca.dxfPreviewSvg || null) : null);
+    setDxfAreaUtilMm2(peca.dxfImportado ? Number(peca.areaUtilMm2 || 0) : 0);
+    setDxfPerimetroCorteMm(peca.dxfImportado ? Number(peca.perimetroCorteMm || 0) : 0);
+
     setEditandoIndex(index);
   };
 
@@ -1139,14 +1209,17 @@ function App() {
 
                     <div className={`border-2 border-dashed rounded-lg p-2.5 text-center transition-colors relative
                       ${dxfErro ? 'border-red-400 bg-red-500/10' : 'border-slate-600 bg-black/20'}`}>
-                        <input type="file" accept=".dxf" onChange={handleDxfUpload} disabled={isUploadingDxf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                        <input type="file" accept=".dxf" multiple onChange={handleDxfUpload} disabled={isUploadingDxf} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                         <div className="flex flex-row items-center justify-center gap-2">
                           <svg className={`w-4 h-4 shrink-0 ${dxfErro ? 'text-red-400' : 'text-orange-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                           <span className={`text-[11px] font-semibold truncate ${dxfErro ? 'text-red-400' : 'text-slate-300'}`}>
-                              {isUploadingDxf ? 'Analisando...' : dxfFile ? dxfFile.name : 'Toque ou arraste um DXF'}
+                              {isUploadingDxf ? 'Analisando...' : dxfFile ? dxfFile.name : 'Toque ou arraste um ou mais DXF'}
                           </span>
                         </div>
                     </div>
+                    {!dxfFile && !isUploadingDxf && (
+                      <p className="text-[9px] text-slate-500 -mt-1 px-1">Selecione vários arquivos de uma vez para importar cada um como uma peça (qtd. 1, usando a máquina/material/espessura atuais).</p>
+                    )}
 
                     {dxfImportado && (
                       <div className="grid grid-cols-3 gap-1.5 text-[9px] text-center">
@@ -1327,7 +1400,10 @@ function App() {
                     <div key={index} className="surface-card-inset p-3 rounded-2xl hover:border-orange-500/50 transition-all text-xs lg:text-sm">
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0 pr-2">
-                          <span className="font-bold surface-heading truncate block">{peca.id}</span>
+                          <span className="font-bold surface-heading truncate block">
+                            {peca.id}
+                            {peca.dxfImportado && <span className="ml-1.5 text-[8px] font-black text-orange-500 align-middle">DXF</span>}
+                          </span>
                           <div className="flex gap-1.5 mt-2">
                             <button onClick={() => editarPeca(index)} className="text-[9px] lg:text-[10px] bg-slate-900/5 dark:bg-white/10 surface-body px-2 py-1.5 rounded-full font-bold hover:bg-slate-900/10 dark:hover:bg-white/20">EDITAR</button>
                             <button onClick={() => removerPeca(index)} className="text-[9px] lg:text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 rounded-full font-bold hover:bg-red-100 dark:hover:bg-red-500/20">REMOVER</button>
@@ -1610,7 +1686,8 @@ function App() {
                             <p className="text-sm font-bold surface-heading">Espessura {Number(item.espessura).toFixed(2)}mm</p>
                             <span className="text-xs font-semibold text-orange-500 dark:text-orange-400">
                               {item.nesting.chapas_necessarias} chapa(s) de {item.dimensao_chapa}mm
-                              {' · '}{item.utilizacao_pct}% aproveitamento{' · '}{item.sucata_peso_kg}kg sucata
+                              {' · '}{item.utilizacao_pct}% aproveitamento{' · '}{item.sucata_peso_kg}kg {item.sobra_reservada_cliente ? 'sobra reservada p/ cliente' : 'sucata'}
+                              {item.maquina && ` · ${rotuloMaquina(item.maquina)}`}
                             </span>
                           </div>
                           <div className="flex gap-4 overflow-x-auto scrollbar-thin pb-2">
@@ -1703,6 +1780,23 @@ function App() {
                       <label className="block text-[10px] lg:text-xs font-bold surface-muted uppercase">Espaço entre peças (mm)</label>
                       <input type="number" value={chapasConfig[esp].offsetPeca} onChange={(e) => handleChapaChange(esp, 'offsetPeca', e.target.value)} className="input-field mt-1 w-full rounded p-2 text-sm focus:ring-orange-500 outline-none"/>
                     </div>
+                    <div>
+                      <label className="block text-[10px] lg:text-xs font-bold surface-muted uppercase">Máquina</label>
+                      <select value={chapasConfig[esp].maquina || 'LASER'} onChange={(e) => handleChapaMaquinaChange(esp, e.target.value)} className="input-field mt-1 w-full rounded p-2 text-sm focus:ring-orange-500 outline-none">
+                        {PERFIS_MAQUINA_SUPORTADOS.map((m) => <option key={m} value={m}>{rotuloMaquinaLongo(m)}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-2 text-[10px] lg:text-xs font-bold surface-muted uppercase mt-1 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!chapasConfig[esp].clienteQuerSobra}
+                          onChange={(e) => handleChapaSobraChange(esp, e.target.checked)}
+                          className="w-4 h-4 accent-orange-500"
+                        />
+                        Cliente quer a sobra
+                      </label>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1747,7 +1841,7 @@ function App() {
             </div>
             <div className="p-3 lg:p-4 border-t border-slate-200 dark:border-white/10 text-xs surface-muted text-center shrink-0">
               {chapaExpandida.chapa.placements.length} peça(s) nesta chapa · {chapaExpandida.item.dimensao_chapa}mm
-              {' · '}{chapaExpandida.item.utilizacao_pct}% aproveitamento (espessura) · {chapaExpandida.item.sucata_peso_kg}kg sucata
+              {' · '}{chapaExpandida.item.utilizacao_pct}% aproveitamento (espessura) · {chapaExpandida.item.sucata_peso_kg}kg {chapaExpandida.item.sobra_reservada_cliente ? 'sobra reservada p/ cliente' : 'sucata'}
             </div>
           </div>
         </div>
