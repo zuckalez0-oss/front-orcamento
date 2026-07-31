@@ -199,3 +199,107 @@ export function furosAbsolutos(placement, pecaOriginal) {
     return { cx: placement.x + cxAbs, cy: placement.y + cyAbs, r: raioFuro };
   });
 }
+
+// --- Sobras aproveitáveis (retângulos de material livre reutilizáveis) ---
+// Extrai da chapa já posicionada (placements finais do nesting) os maiores
+// retângulos de espaço livre — não é o "Controle de Sobras" agregado (área
+// total não utilizada, já existente no backend), é a geometria real de cada
+// pedaço reaproveitável, pra listar em "Sobras Reservadas para o Cliente".
+
+function retangulosSeSobrepoem(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// Divide `livre` nas tiras (até 4: esquerda/direita/cima/baixo) que sobram
+// depois de descontar `ocupado` — padrão "guillotine" de manutenção de
+// retângulos livres (mesma família de algoritmo usada internamente por
+// packers MaxRects/Guillotine, aqui reaplicada de forma independente sobre
+// os placements finais, sem acoplar no motor de bin-packing em si).
+function dividirRetanguloLivre(livre, ocupado) {
+  const resultado = [];
+  if (ocupado.x > livre.x) {
+    resultado.push({ x: livre.x, y: livre.y, w: ocupado.x - livre.x, h: livre.h });
+  }
+  if (ocupado.x + ocupado.w < livre.x + livre.w) {
+    resultado.push({ x: ocupado.x + ocupado.w, y: livre.y, w: (livre.x + livre.w) - (ocupado.x + ocupado.w), h: livre.h });
+  }
+  if (ocupado.y > livre.y) {
+    resultado.push({ x: livre.x, y: livre.y, w: livre.w, h: ocupado.y - livre.y });
+  }
+  if (ocupado.y + ocupado.h < livre.y + livre.h) {
+    resultado.push({ x: livre.x, y: ocupado.y + ocupado.h, w: livre.w, h: (livre.y + livre.h) - (ocupado.y + ocupado.h) });
+  }
+  return resultado;
+}
+
+/**
+ * Calcula os retângulos de sobra reutilizáveis de UMA chapa já posicionada.
+ * @param {Array} placements - `chapa.placements` do resultado do nesting (x,y,width,height absolutos)
+ * @param {number} larguraChapa, {number} comprimentoChapa, {number} margem - mm
+ * @param {number} [dimensaoMinimaMm=100] - abaixo disso (em QUALQUER lado) não é considerado aproveitável
+ * @returns {Array<{x,y,w,h}>} retângulos livres, maximais e SEM sobreposição entre si
+ *   (nunca lista o mesmo pedaço físico duas vezes), ordenados do maior pro menor.
+ */
+// Descarta retângulos totalmente contidos em outro — redundância natural do
+// método de divisão em tiras (várias tiras podem se sobrepor umas às outras).
+// Extraída como função à parte porque precisa rodar DENTRO do loop principal
+// (não só uma vez no fim — ver comentário no bug corrigido abaixo).
+function podarContidos(lista) {
+  return lista.filter((r, indice) => !lista.some((outro, outroIndice) => (
+    outroIndice !== indice && r.x >= outro.x && r.y >= outro.y && r.x + r.w <= outro.x + outro.w && r.y + r.h <= outro.y + outro.h
+  )));
+}
+
+// Trava de segurança: numa chapa muito densa (centenas de peças pequenas
+// bem encaixadas), a lista de retângulos livres pode crescer muito rápido se
+// não for podada a cada passo — cada peça pode dividir VÁRIOS retângulos
+// livres em até 4 novos cada. Sem essa trava, um nesting real (várias
+// centenas de placements) já travou a aba do navegador por vários segundos
+// (o cálculo é 100% síncrono, congela a UI inteira enquanto roda). Acima
+// desse limite, desiste de listar sobra pra ESSA chapa (degrada
+// graciosamente pro texto "nenhuma sobra aproveitável" — o resto do PDF
+// continua sendo gerado normalmente).
+const SOBRA_LIMITE_RETANGULOS_LIVRES = 300;
+
+export function calcularSobrasAproveitaveis(placements, larguraChapa, comprimentoChapa, margem, dimensaoMinimaMm = 100) {
+  const larguraUtil = Math.max(0, larguraChapa - 2 * margem);
+  const comprimentoUtil = Math.max(0, comprimentoChapa - 2 * margem);
+  if (larguraUtil <= 0 || comprimentoUtil <= 0) return [];
+
+  let livres = [{ x: margem, y: margem, w: larguraUtil, h: comprimentoUtil }];
+
+  for (const p of (placements || [])) {
+    const ocupado = { x: p.x, y: p.y, w: p.width, h: p.height };
+    const proximosLivres = [];
+    let algumaDivisao = false;
+    livres.forEach((livre) => {
+      if (retangulosSeSobrepoem(livre, ocupado)) {
+        algumaDivisao = true;
+        proximosLivres.push(...dividirRetanguloLivre(livre, ocupado));
+      } else {
+        proximosLivres.push(livre);
+      }
+    });
+    // Poda a CADA passo (não só no final) — é isso que mantém a lista
+    // pequena; sem podar aqui, o crescimento pode ficar exponencial em
+    // chapas densas em vez de ficar limitado a algumas dezenas de retângulos.
+    livres = algumaDivisao ? podarContidos(proximosLivres) : proximosLivres;
+
+    if (livres.length > SOBRA_LIMITE_RETANGULOS_LIVRES) return [];
+  }
+
+  const maximais = livres.filter((r) => r.w >= dimensaoMinimaMm && r.h >= dimensaoMinimaMm);
+
+  // Seleção gulosa por área (maior primeiro) descartando qualquer candidato
+  // que ainda se sobreponha a um já aceito — garante uma lista SEM
+  // sobreposição (o mesmo pedaço físico de chapa nunca aparece 2x na lista,
+  // o que inflaria a quantidade real de sobra reaproveitável reportada).
+  const ordenados = [...maximais].sort((a, b) => (b.w * b.h) - (a.w * a.h));
+  const selecionados = [];
+  ordenados.forEach((r) => {
+    if (!selecionados.some((s) => retangulosSeSobrepoem(r, s))) {
+      selecionados.push(r);
+    }
+  });
+  return selecionados;
+}

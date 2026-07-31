@@ -74,7 +74,7 @@ function ContornoPeca({ tipoPeca, tipoTriangulo, x, y, width, height, verticesAb
 
 // Renderiza uma chapa de nesting (peças coloridas + furos recortados) em SVG.
 // Reaproveitada tanto na miniatura quanto no modal de expansão.
-function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, className }) {
+function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, className, mostrarLabels = true }) {
   const strokeW = Math.max(item.chapa_largura, item.chapa_comprimento) * 0.003;
 
   return (
@@ -118,7 +118,7 @@ function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, clas
                 />
               )
             ))}
-            {p.width > item.chapa_largura * 0.08 && p.height > item.chapa_comprimento * 0.03 && (
+            {mostrarLabels && p.width > item.chapa_largura * 0.08 && p.height > item.chapa_comprimento * 0.03 && (
               <text
                 x={p.x + p.width / 2} y={p.y + p.height / 2}
                 textAnchor="middle" dominantBaseline="middle" fill="#FFFFFF"
@@ -147,6 +147,7 @@ function App() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro';
   });
   const [cliente, setCliente] = useState('');
+  const [incluiMaterial, setIncluiMaterial] = useState(true); // false = facção (cliente traz a própria chapa)
   const [comissao, setComissao] = useState(2);
   const [margemLucro, setMargemLucro] = useState(25);
   const [frete, setFrete] = useState(31);
@@ -212,6 +213,7 @@ function App() {
   const [chapasConfig, setChapasConfig] = useState({});
   const [chapaExpandida, setChapaExpandida] = useState(null); // { item, chapa, chapaIndex } | null
   const [orientacaoPdf, setOrientacaoPdf] = useState('retrato'); // 'retrato' | 'paisagem' — usado no PDF do plano de corte
+  const [mostrarLabelsNesting, setMostrarLabelsNesting] = useState(true); // liga/desliga os textos (ID da peça) no preview de nesting
 
   const carregarMateriais = async () => {
     try {
@@ -741,7 +743,8 @@ function App() {
       processo, 
       pecas: listaPecas,
       configChapas: chapasConfig,
-      fatorNesting
+      fatorNesting,
+      incluiMaterial,
     };
     
     try {
@@ -1211,6 +1214,19 @@ function App() {
                     </select>
                   </div>
                 </div>
+
+                <label className="mt-2.5 pt-2.5 border-t border-slate-200 dark:border-white/10 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider surface-muted cursor-pointer select-none w-fit">
+                  <input
+                    type="checkbox"
+                    checked={incluiMaterial}
+                    onChange={(e) => setIncluiMaterial(e.target.checked)}
+                    className="w-4 h-4 accent-orange-500"
+                  />
+                  Incluir custo de material
+                  <span className="font-normal normal-case text-[9px] surface-muted">
+                    {incluiMaterial ? '(pacote completo: material + corte)' : '(facção — cliente traz a própria chapa)'}
+                  </span>
+                </label>
               </div>
 
               {/* INSERÇÃO DE PEÇAS E UPLOAD DE DXF */}
@@ -1488,6 +1504,9 @@ function App() {
                       <span>MÁQ: <b className="text-orange-400">{processo}</b></span>
                       <span>EMISSÃO: <b className="text-white">{dataEmissao?.toLocaleDateString('pt-BR')}</b></span>
                     </div>
+                    <span className={`inline-block mt-2 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${resultadoOrcamento.inclui_material ? 'bg-orange-500/20 text-orange-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                      {resultadoOrcamento.inclui_material ? '📦 Pacote completo (material + corte)' : '✂️ Só serviço (facção — chapa por conta do cliente)'}
+                    </span>
                   </div>
                   <div className="flex w-full md:w-auto gap-3">
                     <button onClick={() => setTelaAtual('formulario')} className="flex-1 md:flex-none bg-white/10 px-4 py-2.5 lg:py-3 rounded-full font-bold text-xs lg:text-sm text-center border border-white/10">← Editar</button>
@@ -1506,6 +1525,9 @@ function App() {
                     <h2 className="text-[9px] font-bold uppercase tracking-widest text-slate-600">
                       Consultoria & Orçamento Técnico
                     </h2>
+                    <span className="mt-1.5 inline-block w-fit px-2 py-0.5 border border-slate-900 text-[8px] font-bold uppercase tracking-wider text-slate-900">
+                      {resultadoOrcamento.inclui_material ? 'Pacote completo (material + corte)' : 'Só serviço (facção — chapa por conta do cliente)'}
+                    </span>
                   </div>
                   <div className="text-right text-[10px] text-slate-900">
                     <table className="text-right ml-auto">
@@ -1546,6 +1568,10 @@ function App() {
                     <div className="bg-white dark:bg-orange-500/10 p-3 lg:p-4 rounded-xl border border-orange-200 dark:border-orange-500/30 shadow-sm text-center flex flex-col justify-center col-span-2 sm:col-span-1">
                       <p className="text-[10px] lg:text-xs font-bold text-orange-800 dark:text-orange-300 uppercase">Custo Máquina R$</p>
                       <p className="text-lg xl:text-xl font-black text-orange-700 dark:text-orange-400 mt-1 truncate">R$ {resultadoOrcamento.totais_globais.custo_maquina?.toFixed(2)}</p>
+                    </div>
+                    <div className="input-field p-3 lg:p-4 rounded-xl shadow-sm text-center flex flex-col justify-center" title={!resultadoOrcamento.inclui_material ? 'Facção: material não cobrado, chapa por conta do cliente' : ''}>
+                        <p className="text-[10px] lg:text-xs font-bold surface-muted uppercase">Custo Material R$</p>
+                        <p className="text-lg xl:text-xl font-black surface-heading mt-1 truncate">R$ {resultadoOrcamento.totais_globais.custo_material?.toFixed(2)}</p>
                     </div>
                     <div className="input-field p-3 lg:p-4 rounded-xl shadow-sm text-center flex flex-col justify-center">
                         <p className="text-[10px] lg:text-xs font-bold surface-muted uppercase">Aproveitamento</p>
@@ -1623,7 +1649,9 @@ function App() {
                                 <React.Fragment key={index}>
 
                                   {/* 1. LINHAS INDIVIDUAIS DAS PEÇAS */}
-                                  {pecasDestaEspessura.map((p, i) => (
+                                  {pecasDestaEspessura.map((p, i) => {
+                                    const detalhePeca = resultadoOrcamento.detalhamento_pecas?.[p.id];
+                                    return (
                                     <tr key={`${index}-${i}`} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors border-t border-slate-100 dark:border-white/10 print:border-none">
                                       <td className="p-3 font-bold text-slate-800 dark:text-slate-200 print:text-slate-800 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
                                         {p.id}
@@ -1652,12 +1680,20 @@ function App() {
                                         </div>
                                       </td>
 
-                                      {/* Colunas vazias na impressão, marcadas com hífens */}
-                                      <td className="p-3 text-center text-slate-300 dark:text-slate-600 print:text-slate-400 print:border print:border-slate-400 print:p-1 print:px-2">-</td>
-                                      <td className="p-3 text-slate-300 dark:text-slate-600 print:text-slate-400 print:border print:border-slate-400 print:p-1 print:px-2">-</td>
-                                      <td className="p-3 text-slate-300 dark:text-slate-600 print:text-slate-400 text-right print:border print:border-slate-400 print:p-1 print:px-2">-</td>
+                                      {/* Rateio real por peça (não estimado): tempo/custo já vêm calculados
+                                          individualmente do backend (detalhamento_pecas), não divididos do total. */}
+                                      <td className="p-3 text-center font-mono text-[10px] lg:text-xs text-slate-600 dark:text-slate-400 print:text-slate-600 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {item.dimensao_chapa}
+                                      </td>
+                                      <td className="p-3 font-mono text-[10px] lg:text-xs text-slate-600 dark:text-slate-400 print:text-slate-600 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {detalhePeca ? `${detalhePeca.tempo_min.toFixed(1)} min` : '-'}
+                                      </td>
+                                      <td className="p-3 text-right font-mono text-[10px] lg:text-xs font-bold text-slate-700 dark:text-slate-300 print:text-slate-700 print:border print:border-slate-400 print:p-1 print:px-2 print:text-[9px]">
+                                        {detalhePeca ? `R$ ${detalhePeca.custo_maquina.toFixed(2)}` : '-'}
+                                      </td>
                                     </tr>
-                                  ))}
+                                    );
+                                  })}
 
                                   {/* 2. LINHA DE SUBTOTAL DA ESPESSURA */}
                                   <tr className="bg-orange-50/60 dark:bg-orange-500/10 print:bg-slate-300 border-t-2 border-orange-200 dark:border-orange-500/30 print:border-y-2 print:border-slate-900 shadow-sm print:shadow-none">
@@ -1709,6 +1745,14 @@ function App() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base lg:text-lg font-black surface-heading">🧩 Visualização de Nesting</h3>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setMostrarLabelsNesting((atual) => !atual)}
+                          title="Mostrar/ocultar os IDs das peças desenhados sobre o nesting"
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-colors ${mostrarLabelsNesting ? 'bg-slate-900/5 dark:bg-white/10 surface-body hover:bg-slate-900/10 dark:hover:bg-white/20' : 'bg-orange-500 text-white'}`}
+                        >
+                          {mostrarLabelsNesting ? '🏷️ Labels ligadas' : '🏷️ Labels ocultas'}
+                        </button>
                         <div className="flex rounded-full bg-slate-900/5 dark:bg-white/10 p-0.5 text-[10px] font-bold uppercase">
                           <button
                             type="button"
@@ -1759,6 +1803,7 @@ function App() {
                                     chapa={chapa}
                                     idsUnicosPecas={idsUnicosPecasNesting}
                                     listaPecas={listaPecas}
+                                    mostrarLabels={mostrarLabelsNesting}
                                     width={Math.max(60, Math.round(260 * (item.chapa_largura / item.chapa_comprimento)))}
                                     height={260}
                                     className="bg-black rounded"
@@ -1888,6 +1933,7 @@ function App() {
                 chapa={chapaExpandida.chapa}
                 idsUnicosPecas={idsUnicosPecasNesting}
                 listaPecas={listaPecas}
+                mostrarLabels={mostrarLabelsNesting}
                 width={Math.min(900, Math.round(700 * (chapaExpandida.item.chapa_largura / chapaExpandida.item.chapa_comprimento)))}
                 height={700}
                 className="bg-black rounded-lg shadow-2xl"

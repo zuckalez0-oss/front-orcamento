@@ -99,9 +99,15 @@ export function desenharBarraTitulo(doc, y, texto) {
   return y + altura;
 }
 
-export function desenharTituloPlanoDeCorte(doc, y, { numero, multiplicador }) {
-  const rotulo = multiplicador > 1 ? `PLANO DE CORTE ${numero} (${multiplicador}X)` : `PLANO DE CORTE ${numero}`;
-  return desenharBarraTitulo(doc, y, rotulo);
+// `totalPlanos` (opcional): quantos planos de corte distintos essa espessura
+// tem no total — vira "(N-TOTAL)" no título, pra o orçamentista sempre saber
+// em qual página está sem precisar contar manualmente (ex: 3 planos numa
+// espessura viram "(1-3)", "(2-3)", "(3-3)"). `multiplicador` (chapas físicas
+// idênticas repetidas dentro do MESMO plano) continua exibido à parte, quando >1.
+export function desenharTituloPlanoDeCorte(doc, y, { numero, totalPlanos, multiplicador }) {
+  const posicao = totalPlanos > 1 ? ` (${numero}-${totalPlanos})` : '';
+  const repeticao = multiplicador > 1 ? ` (${multiplicador}X)` : '';
+  return desenharBarraTitulo(doc, y, `PLANO DE CORTE ${numero}${posicao}${repeticao}`);
 }
 
 // Painel-resumo da espessura: Nome do JOB / Nº de chapas, Aproveitamento /
@@ -166,13 +172,16 @@ export function desenharTabelaEspecificacoesChapa(doc, y, {
 
 // Lista detalhada de peças do plano. `pecas`: [{numero, nome, qtdSolicitada,
 // qtdNesting, pesoLiquidoKg, cliente, tempoCorte, ordemProducao}]. A coluna
-// "Imagem" hoje é só um placeholder (quadro vazio) — reservado pra um
-// thumbnail real da peça no futuro.
-export function desenharTabelaPecasDoPlano(doc, y, pecas) {
+// "Imagem" desenha um placeholder vazio por padrão; passe `renderizarImagem(doc,
+// pecaDaLinha, x, y, w, h)` pra desenhar a forma real da peça em cada célula
+// (o "o quê" desenhar é decisão do chamador — este módulo continua sem
+// conhecer nada de DXF/contorno, só oferece o gancho).
+export function desenharTabelaPecasDoPlano(doc, y, pecas, { renderizarImagem } = {}) {
   autoTable(doc, {
     ...ESTILO_BASE_TABELA,
     startY: y,
     margin: { left: MARGEM_PAGINA, right: MARGEM_PAGINA, bottom: MARGEM_PAGINA },
+    showHead: 'everyPage',
     styles: { ...ESTILO_BASE_TABELA.styles, fontSize: 7.5, halign: 'center' },
     headStyles: { fillColor: '#FFFFFF', textColor: COR_PRETO, lineWidth: LARGURA_LINHA, lineColor: COR_PRETO, fontStyle: 'bold' },
     head: [['Imagem', 'Número da Peça', 'Nome da Peça', 'Qtd Solicitada', 'Qtd Nesting', 'Peso Líquido (KG)', 'Cliente', 'Tempo de Corte', 'Ordem de Produção']],
@@ -182,11 +191,19 @@ export function desenharTabelaPecasDoPlano(doc, y, pecas) {
     ]),
     columnStyles: { 2: { halign: 'left' } },
     didDrawCell: (info) => {
-      if (info.section === 'body' && info.column.index === 0) {
-        const pad = 1.3;
+      if (info.section !== 'body' || info.column.index !== 0) return;
+      const pad = 1.3;
+      const cellX = info.cell.x + pad;
+      const cellY = info.cell.y + pad;
+      const cellW = info.cell.width - pad * 2;
+      const cellH = info.cell.height - pad * 2;
+      const pecaDaLinha = pecas[info.row.index];
+      if (renderizarImagem && pecaDaLinha) {
+        renderizarImagem(doc, pecaDaLinha, cellX, cellY, cellW, cellH);
+      } else {
         doc.setDrawColor(COR_CINZA);
         doc.setLineWidth(0.2);
-        doc.rect(info.cell.x + pad, info.cell.y + pad, info.cell.width - pad * 2, info.cell.height - pad * 2);
+        doc.rect(cellX, cellY, cellW, cellH);
       }
     },
   });
@@ -194,19 +211,39 @@ export function desenharTabelaPecasDoPlano(doc, y, pecas) {
 }
 
 // Sobras reservadas para o cliente. `sobras`: [{medida, quantidade,
-// pesoUnitarioKg, pesoTotalKg}] — lista vazia mostra o texto padrão do
-// modelo de referência em vez de uma tabela em branco.
-export function desenharTabelaSobras(doc, y, sobras) {
+// pesoUnitarioKg, pesoTotalKg}] — lista vazia mostra `mensagemVazia` (ex:
+// "Nenhuma sobra aproveitável neste plano." ou "A sobra ficará na empresa.",
+// dependendo se o cliente pediu a sobra ou não — decisão do chamador).
+export function desenharTabelaSobras(doc, y, sobras, mensagemVazia = 'Nenhuma sobra aproveitável neste plano.') {
   autoTable(doc, {
     ...ESTILO_BASE_TABELA,
     startY: y,
     margin: { left: MARGEM_PAGINA, right: MARGEM_PAGINA, bottom: MARGEM_PAGINA },
+    showHead: 'everyPage',
     styles: { ...ESTILO_BASE_TABELA.styles, halign: 'center' },
     headStyles: { fillColor: '#FFFFFF', textColor: COR_PRETO, lineWidth: LARGURA_LINHA, lineColor: COR_PRETO, fontStyle: 'bold' },
     head: [['Medida (L x A mm)', 'Quantidade', 'Peso Unitário (kg)', 'Peso Total (kg)']],
     body: sobras.length > 0
       ? sobras.map((s) => [s.medida, String(s.quantidade), s.pesoUnitarioKg, s.pesoTotalKg])
-      : [[{ content: 'Nenhuma sobra aproveitável neste plano.', colSpan: 4, styles: { halign: 'left', textColor: COR_CINZA, fontStyle: 'italic' } }]],
+      : [[{ content: mensagemVazia, colSpan: 4, styles: { halign: 'left', textColor: COR_CINZA, fontStyle: 'italic' } }]],
+  });
+  return doc.lastAutoTable.finalY;
+}
+
+// Tabela genérica de pares "rótulo: valor" (linhas com 2 ou 4 colunas,
+// alternando rótulo/valor) — pra telas de resumo que não têm uma seção fixa
+// própria no padrão (ex: página de orçamento). Rótulos (índices pares) saem
+// em negrito automaticamente.
+export function desenharTabelaChavesValores(doc, y, linhas) {
+  autoTable(doc, {
+    ...ESTILO_BASE_TABELA,
+    startY: y,
+    margin: { left: MARGEM_PAGINA, right: MARGEM_PAGINA, bottom: MARGEM_PAGINA },
+    body: linhas.map((linha) => linha.map((celula, indice) => (
+      indice % 2 === 0 && typeof celula !== 'object'
+        ? { content: celula, styles: { fontStyle: 'bold' } }
+        : celula
+    ))),
   });
   return doc.lastAutoTable.finalY;
 }

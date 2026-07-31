@@ -107,6 +107,9 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
   const [furoAbertoKey, setFuroAbertoKey] = useState(null);
   const [isImportandoDxf, setIsImportandoDxf] = useState(false);
   const [dxfPreviewAberto, setDxfPreviewAberto] = useState(null); // { id, svg } | null
+  // Seleção múltipla de linhas — hoje só usada pra edição em massa da Máquina
+  // (marcar N linhas e mudar a Máquina de UMA delas reflete em todas as marcadas).
+  const [linhasSelecionadas, setLinhasSelecionadas] = useState(() => new Set());
   const inputCsvRef = useRef(null);
   const inputJsonRef = useRef(null);
   const inputDxfRef = useRef(null);
@@ -114,9 +117,17 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
   const maquinasDisponiveis = maquinasDaLista(maquinasParamsOrdenados).length > 0
     ? maquinasDaLista(maquinasParamsOrdenados) : ['LASER', 'PLASMA'];
 
+  // Edição em massa: quando o campo é "maquina" e a linha editada faz parte de
+  // uma seleção com mais de 1 linha marcada, o valor novo se aplica a TODAS as
+  // linhas marcadas (não só à que dispara o onChange) — cada uma recalculando
+  // seu próprio material/espessura padrão pra máquina nova, igual ao caso de
+  // linha única. Outros campos continuam editando só a linha em questão.
   const atualizarLinha = (key, campo, valor) => {
+    const emMassa = campo === 'maquina' && linhasSelecionadas.has(key) && linhasSelecionadas.size > 1;
+    const chavesAlvo = emMassa ? linhasSelecionadas : new Set([key]);
+
     setLinhas((prev) => prev.map((l) => {
-      if (l.key !== key) return l;
+      if (!chavesAlvo.has(l.key)) return l;
       const atualizado = { ...l, [campo]: valor };
 
       if (campo === 'maquina') {
@@ -143,6 +154,19 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
     }));
   };
 
+  const alternarSelecaoLinha = (key) => {
+    setLinhasSelecionadas((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(key)) novo.delete(key); else novo.add(key);
+      return novo;
+    });
+  };
+
+  const todasLinhasSelecionadas = linhas.length > 0 && linhas.every((l) => linhasSelecionadas.has(l.key));
+  const alternarSelecaoTodas = () => {
+    setLinhasSelecionadas(todasLinhasSelecionadas ? new Set() : new Set(linhas.map((l) => l.key)));
+  };
+
   const adicionarLinha = (baseKey) => {
     const base = linhas.find((l) => l.key === baseKey);
     const nova = criarLinha({
@@ -165,6 +189,12 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
   const removerLinha = (key) => {
     setLinhas((prev) => prev.filter((l) => l.key !== key));
     if (furoAbertoKey === key) setFuroAbertoKey(null);
+    setLinhasSelecionadas((prev) => {
+      if (!prev.has(key)) return prev;
+      const novo = new Set(prev);
+      novo.delete(key);
+      return novo;
+    });
   };
 
   const handleEnterNaLinha = (key) => {
@@ -206,8 +236,8 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
 
     onAdicionarPecas(pecas);
 
+    const chavesProntas = new Set(prontas.map((p) => p.linha.key));
     setLinhas((prev) => {
-      const chavesProntas = new Set(prontas.map((p) => p.linha.key));
       const restantes = prev.filter((l) => !chavesProntas.has(l.key));
       if (restantes.length > 0) return restantes;
       const ultima = prontas[prontas.length - 1].linha;
@@ -215,6 +245,12 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
         maquina: ultima.maquina, material: ultima.material, espessura: ultima.espessura,
         tipoPeca: ultima.tipoPeca, tipoTriangulo: ultima.tipoTriangulo,
       })];
+    });
+    setLinhasSelecionadas((prev) => {
+      if (![...chavesProntas].some((k) => prev.has(k))) return prev;
+      const novo = new Set(prev);
+      chavesProntas.forEach((k) => novo.delete(k));
+      return novo;
     });
   };
 
@@ -337,10 +373,26 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
         </span>
       </div>
 
+      {linhasSelecionadas.size > 1 && (
+        <div className="flex items-center gap-2 text-[10px] font-bold bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2.5 py-1.5 rounded-full w-fit">
+          <span>{linhasSelecionadas.size} linhas marcadas — mude a Máquina de uma delas pra aplicar em todas</span>
+          <button type="button" onClick={() => setLinhasSelecionadas(new Set())} className="underline hover:no-underline">Limpar seleção</button>
+        </div>
+      )}
+
       <div className="overflow-x-auto scrollbar-thin surface-card-inset rounded-lg">
         <table className="w-full text-left min-w-[1100px] border-collapse">
           <thead className="text-[9px] font-bold uppercase tracking-wider surface-muted">
             <tr>
+              <th className="p-1.5 w-8">
+                <input
+                  type="checkbox"
+                  checked={todasLinhasSelecionadas}
+                  onChange={alternarSelecaoTodas}
+                  title="Selecionar todas as linhas"
+                  className="w-3.5 h-3.5 accent-orange-500"
+                />
+              </th>
               <th className="p-1.5 min-w-[90px]">Identificador</th>
               <th className="p-1.5 min-w-[90px]">Geometria</th>
               <th className="p-1.5 min-w-[90px]">Tipo Δ</th>
@@ -365,9 +417,19 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
               const semParametro = !parametro;
               const nFurosAtual = linha.tipoFuro === 'manual' ? (parseInt(linha.nFuros) || 0) : (parseInt(linha.nFuros) || 0);
 
+              const selecionada = linhasSelecionadas.has(linha.key);
+
               return (
                 <React.Fragment key={linha.key}>
-                  <tr className={`border-t border-slate-200 dark:border-white/10 ${valida ? '' : 'bg-amber-500/5'}`}>
+                  <tr className={`border-t border-slate-200 dark:border-white/10 ${selecionada ? 'bg-orange-500/10' : valida ? '' : 'bg-amber-500/5'}`}>
+                    <td className="p-1 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selecionada}
+                        onChange={() => alternarSelecaoLinha(linha.key)}
+                        className="w-3.5 h-3.5 accent-orange-500"
+                      />
+                    </td>
                     <td className="p-1">
                       <input
                         id={`re-${linha.key}-id`}
@@ -488,7 +550,7 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
 
                   {furoAbertoKey === linha.key && (
                     <tr className="bg-black/10 dark:bg-black/30">
-                      <td colSpan={11} className="p-2">
+                      <td colSpan={12} className="p-2">
                         <div className="flex flex-wrap items-end gap-2">
                           <div>
                             <label className="block text-[9px] font-semibold surface-muted">Tipo de Furo</label>

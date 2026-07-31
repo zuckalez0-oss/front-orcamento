@@ -249,6 +249,11 @@ class OrcamentoPayload(BaseModel):
     fatorNesting: float
     pecas: List[Peca]
     configChapas: Dict[str, ConfigChapa]
+    # Facção (cliente traz a própria chapa) x pacote completo. Quando False, o
+    # custo de material não entra na base de precificação (markup incide só
+    # sobre o custo de máquina/serviço) — mas peso/nº de chapas continuam
+    # calculados normalmente, como referência informativa pro orçamentista.
+    incluiMaterial: bool = True
 
 
 # ==========================================
@@ -265,6 +270,12 @@ def calcular_orcamento(dados: OrcamentoPayload):
 
     resumo_espessuras = {}
     pecas_por_espessura = {}
+    # Rateio real por peça (não uma divisão proporcional do total — o tempo/custo
+    # de cada peça já é calculado individualmente aqui, só nunca tinha sido
+    # devolvido pro frontend; a tabela de peças do orçamento usava "-" nessas
+    # colunas). Chave = peça.id, mesmo critério já usado em toda a app pra
+    # identificar peças (nesting, cores, etc).
+    detalhamento_pecas = {}
 
     for peca in dados.pecas:
         espessura_str = f"{peca.espessura:.2f}"
@@ -327,6 +338,11 @@ def calcular_orcamento(dados: OrcamentoPayload):
         # consumida por espessura (peça + sucata), calculado depois do nesting real, abaixo.
         custo_maquina_peca = motor_precos.custo_maquina(tempo_total_peca, peca.valorHora)
 
+        detalhamento_pecas[peca.id] = {
+            "tempo_min": round(tempo_total_peca, 2),
+            "custo_maquina": round(custo_maquina_peca, 2),
+        }
+
         resumo_espessuras[espessura_str]["qtd_pecas"] += peca.qtd
         resumo_espessuras[espessura_str]["peso_kg"] += peca.pesoTotal
         resumo_espessuras[espessura_str]["tempo_min"] += tempo_total_peca
@@ -372,8 +388,13 @@ def calcular_orcamento(dados: OrcamentoPayload):
             chapas_necessarias, largura_chapa, comprimento_chapa,
             dados_esp["espessura"], dados_esp["densidade_ref"], dados_esp["preco_kg_ref"]
         )
-        dados_esp["custo_material"] = custo_material_espessura
-        custo_material_global += custo_material_espessura
+        # Facção (dados.incluiMaterial == False): não cobra a chapa — só o
+        # serviço de corte. chapas_necessarias/dimensao_chapa/peso etc continuam
+        # calculados normalmente logo abaixo, como referência pro orçamentista
+        # (quantas chapas o cliente precisa trazer), só o CUSTO é zerado.
+        dados_esp["custo_material"] = custo_material_espessura if dados.incluiMaterial else 0.0
+        if dados.incluiMaterial:
+            custo_material_global += custo_material_espessura
 
         # Injeta o Setup (apenas 1x) no total da espessura
         setup_min = dados_esp["tempo_setup"]
@@ -449,7 +470,9 @@ def calcular_orcamento(dados: OrcamentoPayload):
                 (area_pecas_total_global / chapa_area_total_global * 100) if chapa_area_total_global > 0 else 0.0, 2
             ),
         },
-        "detalhamento_espessuras": detalhamento_lista
+        "detalhamento_espessuras": detalhamento_lista,
+        "detalhamento_pecas": detalhamento_pecas,
+        "inclui_material": dados.incluiMaterial,
     }
 
 

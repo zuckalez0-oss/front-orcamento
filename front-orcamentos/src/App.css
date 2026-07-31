@@ -180,6 +180,27 @@ body {
     print-color-adjust: exact;
   }
 
+  /* Bug: com o tema escuro ativo, a classe .dark continua na <html> durante a
+     impressão (a media query "print" não remove classes do DOM) — como as
+     cores de .surface-card/.surface-heading/.input-field etc vêm de variáveis
+     CSS (--text-heading, --surface-card...) redefinidas dentro de `.dark`, o
+     PDF saía escuro mesmo com `body { background: white }` acima, porque essas
+     variáveis não são herdadas de `body`, são recalculadas em cada elemento.
+     Redefine as mesmas variáveis pros valores de tema claro só na impressão —
+     o PDF gerado (window.print) fica sempre no mesmo padrão claro, independente
+     do tema ativo na tela. */
+  .dark {
+    color-scheme: light;
+    --surface-card: rgba(255, 255, 255, 0.9);
+    --surface-card-inset: #F8FAFC;
+    --surface-input: #FFFFFF;
+    --border-default: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text-heading: #0F172A;
+    --text-body: #334155;
+    --text-muted: #64748B;
+  }
+
   /* Força o container principal a ocupar exatamente 100% sem transbordar */
   .print\:w-full {
     width: 100% !important;
