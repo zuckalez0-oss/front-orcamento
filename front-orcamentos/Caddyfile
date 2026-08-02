@@ -1,4 +1,4 @@
-:80 {
+geoquote.lypsyos.com {
 	# Proxy tudo em /api/* pro backend FastAPI (nome do serviço no
 	# docker-compose funciona como hostname dentro da rede interna do Docker).
 	handle_path /api/* {

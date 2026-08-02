@@ -23,5 +23,16 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      # Persiste os certificados Let's Encrypt entre rebuilds — sem isso,
+      # cada `docker compose up --build` re-emitiria certificado (risco de
+      # esbarrar no rate limit do Let's Encrypt).
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
