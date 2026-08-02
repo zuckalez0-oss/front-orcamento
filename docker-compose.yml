@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend-orcamentos
+    container_name: geoquote-backend
+    restart: unless-stopped
+    volumes:
+      # geoquote.db é criado relativo ao CWD (/app) do processo — ver
+      # SQLALCHEMY_DATABASE_URL em main.py. Bind mount de arquivo único:
+      # o arquivo precisa existir no host ANTES do primeiro `docker compose up`
+      # (senão o Docker cria um diretório no lugar). Ver passo-a-passo de deploy.
+      - ./data/geoquote.db:/app/geoquote.db
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./front-orcamentos
+      args:
+        VITE_API_BASE: /api
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    container_name: geoquote-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

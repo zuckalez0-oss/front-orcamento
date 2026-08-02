@@ -12,7 +12,7 @@ import { supabase } from './lib/supabaseClient.js';
 import { useAuth } from './useAuth.js';
 import PerfilUsuario from './PerfilUsuario.jsx';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 // Lista fixa dos perfis de máquina suportados pelo motor de nesting (ver
 // nesting.py) — não deriva de maquinas_params porque um perfil precisa poder
@@ -516,7 +516,7 @@ function App() {
   const processarArquivoDxf = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    const resposta = await fetch('http://localhost:8000/processar-dxf', {
+    const resposta = await fetch(`${API_BASE}/processar-dxf`, {
       method: 'POST',
       body: formData
     });
@@ -748,7 +748,7 @@ function App() {
     };
     
     try {
-      const resposta = await fetch('http://localhost:8000/calcular-orcamento', {
+      const resposta = await fetch(`${API_BASE}/calcular-orcamento`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pacoteDeDados)

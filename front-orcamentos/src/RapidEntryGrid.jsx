@@ -306,7 +306,8 @@ export default function RapidEntryGrid({ maquinasParamsOrdenados, listaMateriais
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const resposta = await fetch('http://localhost:8000/processar-dxf', { method: 'POST', body: formData });
+        const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+        const resposta = await fetch(`${apiBase}/processar-dxf`, { method: 'POST', body: formData });
         const dados = await resposta.json();
 
         if (!dados.sucesso) {

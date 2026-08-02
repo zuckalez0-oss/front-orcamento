@@ -1,0 +1,16 @@
+:80 {
+	# Proxy tudo em /api/* pro backend FastAPI (nome do serviço no
+	# docker-compose funciona como hostname dentro da rede interna do Docker).
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Resto é o build estático do React — fallback pra index.html
+	# porque é uma SPA sem roteador de URL (telas trocam via state, mas
+	# ainda assim é boa prática ter o fallback).
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

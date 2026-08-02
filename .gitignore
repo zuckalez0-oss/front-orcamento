@@ -1,0 +1,9 @@
+# Credenciais usadas pelo docker-compose.yml em build-time
+.env
+
+# SQLite bind-mounted pro backend em produção (ver docker-compose.yml)
+/data/
+
+# Ambientes locais / IDE
+.venv/
+.idea/
