@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, supabaseConfigurado } from './lib/supabaseClient.js';
+import { API_BASE } from './apiBase.js';
 import Login from './Login.jsx';
 import AuthContext from './AuthContext.jsx';
 
@@ -35,6 +36,7 @@ function AuthGate({ children }) {
   const [carregando, setCarregando] = useState(true);
   const [sessao, setSessao] = useState(null);
   const [perfil, setPerfil] = useState(null);
+  const [contaAtual, setContaAtual] = useState(null);
 
   const carregarPerfil = async (sessaoAtual) => {
     if (!sessaoAtual) {
@@ -43,10 +45,50 @@ function AuthGate({ children }) {
     }
     const { data, error } = await supabase.from('profiles').select('*').eq('id', sessaoAtual.user.id).single();
     if (error) {
-      console.error('Falha ao carregar perfil (verifique se supabase/schema.sql já foi rodado no seu projeto)', error);
+      // Não é um erro real pra quem não faz parte do RBAC interno (ex: um
+      // cliente Free/Pro cadastrado pelo app público nunca terá linha em
+      // `profiles`, só em `contas_usuarios`) — por isso não loga como falha
+      // aqui; só fica sem `perfil`/`papel` internos, o que é o esperado.
       setPerfil(null);
     } else {
       setPerfil(data);
+    }
+  };
+
+  // Conta de assinatura (Free/Pro/Enterprise) — sistema paralelo ao RBAC
+  // interno acima, ver comentário em AuthContext.jsx. 403 aqui é o caso
+  // normal pra quem só existe no RBAC interno (nunca provisionou conta) —
+  // MAS também é o caso de alguém que acabou de confirmar o e-mail do
+  // cadastro público (ver Login.jsx::handleCriarConta): nesse caso existe
+  // uma marca em localStorage dizendo que o provisionamento ficou pendente,
+  // então tentamos terminá-lo aqui antes de desistir.
+  const carregarConta = async (sessaoAtual) => {
+    if (!sessaoAtual) {
+      setContaAtual(null);
+      return;
+    }
+    const buscarContaMe = () => fetch(`${API_BASE}/contas/me`, {
+      headers: { Authorization: `Bearer ${sessaoAtual.access_token}` },
+    });
+    try {
+      let resposta = await buscarContaMe();
+      if (!resposta.ok) {
+        const pendenteBruto = localStorage.getItem('geoquote_provisionamento_pendente');
+        if (pendenteBruto) {
+          const pendente = JSON.parse(pendenteBruto);
+          const provisionado = await fetch(`${API_BASE}/contas/provisionar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessaoAtual.access_token}` },
+            body: JSON.stringify({ nome: pendente.nome, convite_token: pendente.convite_token || undefined }),
+          });
+          localStorage.removeItem('geoquote_provisionamento_pendente');
+          if (provisionado.ok) resposta = await buscarContaMe();
+        }
+      }
+      setContaAtual(resposta.ok ? await resposta.json() : null);
+    } catch (erro) {
+      console.error('Falha ao carregar conta/assinatura', erro);
+      setContaAtual(null);
     }
   };
 
@@ -58,13 +100,14 @@ function AuthGate({ children }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       setSessao(data.session);
-      await carregarPerfil(data.session);
+      await Promise.all([carregarPerfil(data.session), carregarConta(data.session)]);
       setCarregando(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_evento, novaSessao) => {
       setSessao(novaSessao);
       carregarPerfil(novaSessao);
+      carregarConta(novaSessao);
     });
 
     return () => listener.subscription.unsubscribe();
@@ -75,7 +118,10 @@ function AuthGate({ children }) {
   if (!sessao) return <Login />;
 
   return (
-    <AuthContext.Provider value={{ session: sessao, perfil, papel: perfil?.role || null }}>
+    <AuthContext.Provider value={{
+      session: sessao, perfil, papel: perfil?.role || null,
+      contaAtual, papelConta: contaAtual?.papel || null,
+    }}>
       {children}
     </AuthContext.Provider>
   );

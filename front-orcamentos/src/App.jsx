@@ -11,8 +11,9 @@ import RapidEntryGrid from './RapidEntryGrid.jsx';
 import { supabase } from './lib/supabaseClient.js';
 import { useAuth } from './useAuth.js';
 import PerfilUsuario from './PerfilUsuario.jsx';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+import Historico from './Historico.jsx';
+import Planos from './Planos.jsx';
+import { API_BASE } from './apiBase.js';
 
 // Lista fixa dos perfis de máquina suportados pelo motor de nesting (ver
 // nesting.py) — não deriva de maquinas_params porque um perfil precisa poder
@@ -136,7 +137,20 @@ function ChapaSVG({ item, chapa, idsUnicosPecas, listaPecas, width, height, clas
 }
 
 function App() {
-  const { papel } = useAuth();
+  const { papel, session, contaAtual, papelConta } = useAuth();
+  // Anexado em toda chamada às rotas do backend escopadas por conta
+  // (materiais/máquinas/perfis/clientes/calcular-orcamento) — ver
+  // get_usuario_atual em main.py. /processar-dxf fica de fora de propósito:
+  // não toca no banco, não precisa saber de qual conta é.
+  const authHeaders = () => ({ Authorization: `Bearer ${session?.access_token}` });
+  // RBAC de Parametrização: papel === 'ADMINISTRADOR' é o RBAC interno da
+  // Lypsyos (like antes); papelConta cobre as contas de assinatura
+  // (Free/Pro/Enterprise) — qualquer membro provisionado acessa a tela
+  // (precisa ver preços pra montar orçamento), mas só quem manda no preço
+  // (PROPRIETARIO/GESTOR) pode editar; VENDEDOR fica só-leitura, espelhando
+  // a mesma regra já aplicada no backend (exigir_papel_edicao).
+  const podeAcessarParametrizacao = papel === 'ADMINISTRADOR' || !!papelConta;
+  const podeEditarParametros = papel === 'ADMINISTRADOR' || papelConta === 'PROPRIETARIO' || papelConta === 'GESTOR';
   const dataEmissao = new Date();
   const validadeOrcamento = new Date(dataEmissao.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -171,7 +185,7 @@ function App() {
   const [formMaquina, setFormMaquina] = useState({ maquina: 'LASER', material: '', espessura: '1.50', velocidadeCorte: '21250', tempoPiercing: '2.0', tempoSetup: '5.0', valorHora: '180.00' });
 
   const [editandoPerfilId, setEditandoPerfilId] = useState(null);
-  const [formPerfil, setFormPerfil] = useState({ nome: '', imposto_perc: '18.00' });
+  const [formPerfil, setFormPerfil] = useState({ nome: '', imposto_perc: '18.00', padrao: false });
 
   // 2. ESTADOS DA PEÇA ATUAL
   const [id, setId] = useState('');
@@ -219,7 +233,7 @@ function App() {
 
   const carregarMateriais = async () => {
     try {
-      const resposta = await fetch(`${API_BASE}/materiais`);
+      const resposta = await fetch(`${API_BASE}/materiais`, { headers: authHeaders() });
       const dados = await resposta.json();
       setListaMateriais(Array.isArray(dados) ? dados : []);
     } catch (erro) {
@@ -229,7 +243,7 @@ function App() {
 
   const carregarMaquinasParams = async () => {
     try {
-      const resposta = await fetch(`${API_BASE}/maquinas-params`);
+      const resposta = await fetch(`${API_BASE}/maquinas-params`, { headers: authHeaders() });
       const dados = await resposta.json();
       setListaMaquinasParams(Array.isArray(dados) ? dados : []);
     } catch (erro) {
@@ -239,7 +253,7 @@ function App() {
 
   const carregarClientes = async () => {
     try {
-      const resposta = await fetch(`${API_BASE}/clientes`);
+      const resposta = await fetch(`${API_BASE}/clientes`, { headers: authHeaders() });
       const dados = await resposta.json();
       setListaClientes(Array.isArray(dados) ? dados : []);
     } catch (erro) {
@@ -249,7 +263,7 @@ function App() {
 
   const carregarPerfisTributarios = async () => {
     try {
-      const resposta = await fetch(`${API_BASE}/perfis-tributarios`);
+      const resposta = await fetch(`${API_BASE}/perfis-tributarios`, { headers: authHeaders() });
       const dados = await resposta.json();
       setListaPerfisTributarios(Array.isArray(dados) ? dados : []);
       if (Array.isArray(dados) && dados.length > 0) {
@@ -308,6 +322,13 @@ function App() {
     if (a.nome === b.nome) return a.espessura - b.espessura;
     return a.nome.localeCompare(b.nome);
   });
+  // Materiais são escopados por perfil tributário (2 vendedores da mesma
+  // conta Enterprise podem ter preço diferente pro mesmo material/espessura
+  // — ver POST /materiais no backend), então a tabela de "Matéria-prima" na
+  // Parametrização só mostra os do perfil selecionado no momento.
+  const materiaisDoPerfilOrdenados = materiaisOrdenados.filter(
+    (item) => String(item.perfil_tributario_id) === String(perfilSelecionadoId)
+  );
 
   const maquinasDisponiveis = [...new Set(maquinasParamsOrdenados.map((item) => item.maquina))];
   const materiaisDisponiveis = [...new Set(maquinasParamsOrdenados.filter((item) => item.maquina === maquinaSelecionada).map((item) => item.material))];
@@ -332,8 +353,13 @@ function App() {
   const maquinaParamAtual = maquinasParamsOrdenados.find(
     (item) => item.maquina === maquinaSelecionada && item.material === materialSelecionado && item.espessura.toFixed(2) === espessuraSelecionada
   );
+  // Filtra também pelo perfil tributário selecionado no topo — sem isso,
+  // com 2 vendedores da mesma conta usando perfis (logo preços) diferentes
+  // pro mesmo material/espessura, o .find() pegaria a primeira linha que
+  // aparecesse, não necessariamente a do preço certo pra este orçamento.
   const materialAtual = listaMateriais.find(
     (item) => item.nome === materialSelecionado && item.espessura.toFixed(2) === espessuraSelecionada
+      && String(item.perfil_tributario_id) === String(perfilSelecionadoId)
   );
   // parametroAtual junta o custo/preço (tabela Material) com a velocidade/tempo/hora (tabela Máquina)
   const parametroAtual = maquinaParamAtual && materialAtual
@@ -356,18 +382,27 @@ function App() {
       nome: formMaterial.nome.trim(),
       espessura: parseFloat(formMaterial.espessura),
       precoKg: parseFloat(formMaterial.precoKg),
-      densidade: parseFloat(formMaterial.densidade || 7.85)
+      densidade: parseFloat(formMaterial.densidade || 7.85),
+      // Material fica ligado ao perfil tributário selecionado no topo do
+      // formulário — é o que permite 2 vendedores da mesma conta terem o
+      // mesmo material/espessura com preços diferentes (cada um no seu
+      // perfil). Ver decisão em backend-orcamentos/main.py::add_material.
+      perfil_tributario_id: perfilSelecionadoId ? Number(perfilSelecionadoId) : null,
     };
 
     if (!payload.nome || Number.isNaN(payload.espessura) || Number.isNaN(payload.precoKg)) {
       alert('Preencha material, espessura e preço/kg.');
       return;
     }
+    if (!payload.perfil_tributario_id) {
+      alert('Selecione (ou cadastre, na aba Tarifação/Impostos) um Perfil Tributário antes de cadastrar um material — o preço fica vinculado a ele.');
+      return;
+    }
 
     try {
       await fetch(`${API_BASE}/materiais`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
       });
       await carregarMateriais();
@@ -390,7 +425,7 @@ function App() {
 
   const removerMaterial = async (id) => {
     try {
-      await fetch(`${API_BASE}/materiais/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/materiais/${id}`, { method: 'DELETE', headers: authHeaders() });
       await carregarMateriais();
       if (editandoMaterialId === id) limparFormMaterial();
     } catch (erro) {
@@ -426,7 +461,7 @@ function App() {
     try {
       await fetch(`${API_BASE}/maquinas-params`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
       });
       await carregarMaquinasParams();
@@ -452,7 +487,7 @@ function App() {
 
   const removerMaquinaParam = async (id) => {
     try {
-      await fetch(`${API_BASE}/maquinas-params/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/maquinas-params/${id}`, { method: 'DELETE', headers: authHeaders() });
       await carregarMaquinasParams();
       if (editandoMaquinaId === id) limparFormMaquina();
     } catch (erro) {
@@ -465,14 +500,15 @@ function App() {
 
   const limparFormPerfil = () => {
     setEditandoPerfilId(null);
-    setFormPerfil({ nome: '', imposto_perc: '18.00' });
+    setFormPerfil({ nome: '', imposto_perc: '18.00', padrao: false });
   };
 
   const salvarPerfil = async (e) => {
     e.preventDefault();
     const payload = {
       nome: formPerfil.nome.trim(),
-      imposto_perc: parseFloat(formPerfil.imposto_perc)
+      imposto_perc: parseFloat(formPerfil.imposto_perc),
+      padrao: !!formPerfil.padrao,
     };
 
     if (!payload.nome || Number.isNaN(payload.imposto_perc)) {
@@ -483,7 +519,7 @@ function App() {
     try {
       await fetch(`${API_BASE}/perfis-tributarios`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
       });
       await carregarPerfisTributarios();
@@ -496,12 +532,12 @@ function App() {
 
   const editarPerfil = (item) => {
     setEditandoPerfilId(item.id);
-    setFormPerfil({ nome: item.nome, imposto_perc: item.imposto_perc.toFixed(2) });
+    setFormPerfil({ nome: item.nome, imposto_perc: item.imposto_perc.toFixed(2), padrao: !!item.padrao });
   };
 
   const removerPerfil = async (id) => {
     try {
-      await fetch(`${API_BASE}/perfis-tributarios/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/perfis-tributarios/${id}`, { method: 'DELETE', headers: authHeaders() });
       await carregarPerfisTributarios();
       if (editandoPerfilId === id) limparFormPerfil();
       if (String(perfilSelecionadoId) === String(id)) setPerfilSelecionadoId('');
@@ -763,7 +799,7 @@ function App() {
     try {
       const resposta = await fetch(`${API_BASE}/calcular-orcamento`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(pacoteDeDados)
       });
       
@@ -886,9 +922,29 @@ function App() {
         
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button onClick={() => setTelaAtual('formulario')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Orçamento</button>
-          {papel === 'ADMINISTRADOR' && (
+          {podeAcessarParametrizacao && (
             <button onClick={() => setTelaAtual('parametrizacao')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Parâmetros Globais</button>
           )}
+          {papelConta && (
+            <button onClick={() => setTelaAtual('historico')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Histórico</button>
+          )}
+          {contaAtual && (() => {
+            const podeGerenciarPlano = papelConta === 'PROPRIETARIO' || papelConta === 'GESTOR';
+            const rotulo = contaAtual.tipo_plano === 'FREE' ? 'Upgrade' : contaAtual.tipo_plano === 'PRO' ? 'Pro' : 'Enterprise';
+            return (
+              <button
+                onClick={() => podeGerenciarPlano && setTelaAtual('planos')}
+                title={podeGerenciarPlano ? (contaAtual.tipo_plano === 'FREE' ? 'Fazer upgrade de plano' : 'Ver/alterar plano') : `Plano da conta: ${rotulo}`}
+                className={`px-3 py-1.5 lg:px-4 lg:py-2 rounded-full text-xs lg:text-sm font-bold transition-all shadow-sm ${
+                  contaAtual.tipo_plano === 'FREE'
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'border border-white/10 bg-white/5 text-white hover:bg-orange-500'
+                } ${podeGerenciarPlano ? '' : 'cursor-default'}`}
+              >
+                {rotulo}
+              </button>
+            );
+          })()}
           <button onClick={() => setTelaAtual('perfil')} className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 bg-white/5 text-white text-xs lg:text-sm hover:bg-orange-500 hover:text-white transition-all shadow-sm">Meu Perfil</button>
           <button
             onClick={() => setTema((atual) => (atual === 'escuro' ? 'claro' : 'escuro'))}
@@ -915,8 +971,8 @@ function App() {
       {/* ÁREA PRINCIPAL */}
       <main className="flex-1 relative overflow-hidden">
         
-        {/* TELA: PARAMETRIZAÇÃO GLOBAIS (RBAC: só ADMINISTRADOR) */}
-        {telaAtual === 'parametrizacao' && papel !== 'ADMINISTRADOR' && (
+        {/* TELA: PARAMETRIZAÇÃO GLOBAIS (RBAC: ADMINISTRADOR interno, ou qualquer membro de uma conta) */}
+        {telaAtual === 'parametrizacao' && !podeAcessarParametrizacao && (
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="surface-card rounded-3xl p-8 text-center max-w-sm">
               <p className="text-lg font-black surface-heading mb-2">🔒 Acesso restrito</p>
@@ -924,7 +980,7 @@ function App() {
             </div>
           </div>
         )}
-        {telaAtual === 'parametrizacao' && papel === 'ADMINISTRADOR' && (
+        {telaAtual === 'parametrizacao' && podeAcessarParametrizacao && (
           <div className="absolute inset-0 p-4 lg:p-6 overflow-y-auto scrollbar-thin">
             <div className="max-w-7xl mx-auto space-y-6 pb-10">
               <div className="surface-card backdrop-blur rounded-3xl shadow-[0_24px_80px_-35px_rgba(15,23,42,0.45)] dark:shadow-[0_24px_80px_-35px_rgba(0,0,0,0.7)] border-t-4 border-orange-500 p-4 lg:p-6">
@@ -963,6 +1019,16 @@ function App() {
                 </div>
 
                 {abaGlobal === 'materiais' && (
+                  <div className="mb-4 surface-card-inset p-3 rounded-xl flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label className="text-xs font-bold surface-muted uppercase shrink-0">Perfil tributário (define o preço mostrado/editado)</label>
+                    <select value={perfilSelecionadoId} onChange={(e) => setPerfilSelecionadoId(e.target.value)} className="input-field rounded-xl p-2 text-sm flex-1">
+                      {listaPerfisTributarios.length === 0 ? <option value="">Cadastre um perfil na aba Tarifação/Impostos</option> : listaPerfisTributarios.map((p) => (
+                        <option key={p.id} value={p.id}>{p.nome}{p.padrao ? ' (padrão)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {abaGlobal === 'materiais' && (podeEditarParametros ? (
                   <form onSubmit={salvarMaterial} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end surface-card-inset p-4 rounded-2xl shadow-inner">
                     <div className="sm:col-span-2 lg:col-span-2">
                       <label className="block text-xs font-bold surface-muted uppercase">Material</label>
@@ -989,9 +1055,14 @@ function App() {
                       </button>
                     </div>
                   </form>
-                )}
+                ) : (
+                  <p className="surface-card-inset p-4 rounded-2xl text-xs surface-muted">Somente leitura — fale com o gestor da conta pra alterar preços de matéria-prima.</p>
+                ))}
 
-                {abaGlobal === 'maquinas' && (
+                {abaGlobal === 'maquinas' && !podeEditarParametros && (
+                  <p className="surface-card-inset p-4 rounded-2xl text-xs surface-muted mb-4">Somente leitura — fale com o gestor da conta pra alterar parâmetros de máquina.</p>
+                )}
+                {abaGlobal === 'maquinas' && podeEditarParametros && (
                   <form onSubmit={salvarMaquinaParam} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 items-end surface-card-inset p-4 rounded-2xl shadow-inner">
                     <div>
                       <label className="block text-xs font-bold surface-muted uppercase">Máquina</label>
@@ -1064,24 +1135,32 @@ function App() {
                       </div>
                     </div>
 
-                    <form onSubmit={salvarPerfil} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end surface-card-inset p-4 rounded-2xl shadow-inner">
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-bold surface-muted uppercase">Perfil de Faturamento</label>
-                        <input type="text" value={formPerfil.nome} onChange={(e) => atualizarFormPerfil('nome', e.target.value)} className="input-field mt-1 w-full rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="Ex: Revenda, Industrialização, Simples Nacional"/>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold surface-muted uppercase">Imposto (%)</label>
-                        <input type="number" step="0.01" value={formPerfil.imposto_perc} onChange={(e) => atualizarFormPerfil('imposto_perc', e.target.value)} className="input-field mt-1 w-full rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-end">
-                        {editandoPerfilId !== null && (
-                          <button type="button" onClick={limparFormPerfil} className="w-full sm:w-auto px-5 py-2.5 rounded-full border border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-200 font-bold hover:bg-slate-100 dark:hover:bg-white/10 text-sm">Cancelar</button>
-                        )}
-                        <button type="submit" className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-600 text-sm">
-                          {editandoPerfilId !== null ? 'Salvar' : 'Adicionar'}
-                        </button>
-                      </div>
-                    </form>
+                    {podeEditarParametros ? (
+                      <form onSubmit={salvarPerfil} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end surface-card-inset p-4 rounded-2xl shadow-inner">
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-bold surface-muted uppercase">Perfil de Faturamento</label>
+                          <input type="text" value={formPerfil.nome} onChange={(e) => atualizarFormPerfil('nome', e.target.value)} className="input-field mt-1 w-full rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm" placeholder="Ex: Revenda, Industrialização, Simples Nacional"/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold surface-muted uppercase">Imposto (%)</label>
+                          <input type="number" step="0.01" value={formPerfil.imposto_perc} onChange={(e) => atualizarFormPerfil('imposto_perc', e.target.value)} className="input-field mt-1 w-full rounded-xl p-2.5 focus:ring-2 focus:ring-orange-500 outline-none text-sm"/>
+                        </div>
+                        <div className="flex items-center gap-2 pb-2.5">
+                          <input id="perfil-padrao" type="checkbox" checked={!!formPerfil.padrao} onChange={(e) => atualizarFormPerfil('padrao', e.target.checked)} className="w-4 h-4 accent-orange-500" />
+                          <label htmlFor="perfil-padrao" className="text-xs font-bold surface-muted uppercase">Padrão da conta</label>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-end">
+                          {editandoPerfilId !== null && (
+                            <button type="button" onClick={limparFormPerfil} className="w-full sm:w-auto px-5 py-2.5 rounded-full border border-slate-300 dark:border-white/20 text-slate-700 dark:text-slate-200 font-bold hover:bg-slate-100 dark:hover:bg-white/10 text-sm">Cancelar</button>
+                          )}
+                          <button type="submit" className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2.5 rounded-full font-bold shadow-lg hover:bg-orange-600 text-sm">
+                            {editandoPerfilId !== null ? 'Salvar' : 'Adicionar'}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="surface-card-inset p-4 rounded-2xl text-xs surface-muted">Somente leitura — fale com o gestor da conta pra alterar perfis de faturamento.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1089,8 +1168,8 @@ function App() {
               {abaGlobal === 'materiais' && (
                 <div className="surface-card backdrop-blur rounded-3xl shadow-lg overflow-hidden">
                   <div className="p-4 lg:p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
-                    <h3 className="text-base lg:text-lg font-bold surface-heading">Materiais cadastrados</h3>
-                    <span className="text-xs font-semibold surface-muted">{materiaisOrdenados.length} reg.</span>
+                    <h3 className="text-base lg:text-lg font-bold surface-heading">Materiais cadastrados{perfilSelecionado ? ` — perfil ${perfilSelecionado.nome}` : ''}</h3>
+                    <span className="text-xs font-semibold surface-muted">{materiaisDoPerfilOrdenados.length} reg.</span>
                   </div>
                   <div className="overflow-x-auto scrollbar-thin">
                     <table className="w-full text-left min-w-[600px]">
@@ -1098,11 +1177,11 @@ function App() {
                         <tr>
                           <th className="p-3 lg:p-4">Material</th><th className="p-3 lg:p-4">Espessura</th>
                           <th className="p-3 lg:p-4">R$/Kg</th><th className="p-3 lg:p-4">Densidade</th>
-                          <th className="p-3 lg:p-4 text-right">Ações</th>
+                          {podeEditarParametros && <th className="p-3 lg:p-4 text-right">Ações</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-white/10 text-xs lg:text-sm">
-                        {materiaisOrdenados.map((item) => (
+                        {materiaisDoPerfilOrdenados.map((item) => (
                           <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors">
                             <td className="p-3 lg:p-4 font-semibold">
                               {item.nome}
@@ -1111,12 +1190,14 @@ function App() {
                               )}
                             </td><td className="p-3 lg:p-4">{item.espessura.toFixed(2)} mm</td>
                             <td className="p-3 lg:p-4">R$ {item.precoKg.toFixed(2)}</td><td className="p-3 lg:p-4">{item.densidade.toFixed(2)}</td>
-                            <td className="p-3 lg:p-4 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <button onClick={() => editarMaterial(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
-                                <button onClick={() => removerMaterial(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
-                              </div>
-                            </td>
+                            {podeEditarParametros && (
+                              <td className="p-3 lg:p-4 text-right">
+                                <div className="flex gap-2 justify-end">
+                                  <button onClick={() => editarMaterial(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
+                                  <button onClick={() => removerMaterial(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -1137,7 +1218,7 @@ function App() {
                         <tr>
                           <th className="p-3 lg:p-4">Máquina</th><th className="p-3 lg:p-4">Material</th><th className="p-3 lg:p-4">Espessura</th>
                           <th className="p-3 lg:p-4">Velocidade</th><th className="p-3 lg:p-4">Piercing</th><th className="p-3 lg:p-4">Setup</th><th className="p-3 lg:p-4">R$/Hora</th>
-                          <th className="p-3 lg:p-4 text-right">Ações</th>
+                          {podeEditarParametros && <th className="p-3 lg:p-4 text-right">Ações</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-white/10 text-xs lg:text-sm">
@@ -1145,12 +1226,14 @@ function App() {
                           <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors">
                             <td className="p-3 lg:p-4 font-semibold text-orange-600">{item.maquina}</td><td className="p-3 lg:p-4 font-semibold">{item.material}</td><td className="p-3 lg:p-4">{item.espessura.toFixed(2)} mm</td>
                             <td className="p-3 lg:p-4">{item.velocidadeCorte} mm/min</td><td className="p-3 lg:p-4">{item.tempoPiercing}s</td><td className="p-3 lg:p-4">{item.tempoSetup}min</td><td className="p-3 lg:p-4">R$ {Number(item.valorHora || 0).toFixed(2)}</td>
-                            <td className="p-3 lg:p-4 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <button onClick={() => editarMaquinaParam(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
-                                <button onClick={() => removerMaquinaParam(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
-                              </div>
-                            </td>
+                            {podeEditarParametros && (
+                              <td className="p-3 lg:p-4 text-right">
+                                <div className="flex gap-2 justify-end">
+                                  <button onClick={() => editarMaquinaParam(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
+                                  <button onClick={() => removerMaquinaParam(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -1170,19 +1253,21 @@ function App() {
                       <thead className="bg-slate-950 text-white text-[10px] lg:text-xs uppercase tracking-wider">
                         <tr>
                           <th className="p-3 lg:p-4">Perfil</th><th className="p-3 lg:p-4">Imposto</th>
-                          <th className="p-3 lg:p-4 text-right">Ações</th>
+                          {podeEditarParametros && <th className="p-3 lg:p-4 text-right">Ações</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-white/10 text-xs lg:text-sm">
                         {listaPerfisTributarios.map((item) => (
                           <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors">
-                            <td className="p-3 lg:p-4 font-semibold">{item.nome}</td><td className="p-3 lg:p-4">{item.imposto_perc.toFixed(2)}%</td>
-                            <td className="p-3 lg:p-4 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <button onClick={() => editarPerfil(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
-                                <button onClick={() => removerPerfil(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
-                              </div>
-                            </td>
+                            <td className="p-3 lg:p-4 font-semibold">{item.nome}{item.padrao && <span className="ml-2 inline-block text-[9px] bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full font-bold align-middle">padrão</span>}</td><td className="p-3 lg:p-4">{item.imposto_perc.toFixed(2)}%</td>
+                            {podeEditarParametros && (
+                              <td className="p-3 lg:p-4 text-right">
+                                <div className="flex gap-2 justify-end">
+                                  <button onClick={() => editarPerfil(item)} className="text-[10px] bg-slate-100 dark:bg-white/10 surface-body px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Editar</button>
+                                  <button onClick={() => removerPerfil(item.id)} className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-1.5 lg:px-3 lg:py-2 rounded-full font-bold">Excluir</button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -1490,6 +1575,12 @@ function App() {
                 <h2 className="text-base lg:text-lg font-black surface-heading">Itens do Orçamento</h2>
                 <span className="bg-orange-100 dark:bg-orange-500/20 text-orange-800 dark:text-orange-300 text-[10px] lg:text-xs font-bold px-2 py-1 rounded-full">{listaPecas.length} peças</span>
               </div>
+
+              {contaAtual?.tipo_plano === 'FREE' && listaPecas.length > 50 && (
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-2.5 mb-3">
+                  O plano Free permite calcular no máximo 50 peças por orçamento — remova algumas ou <button type="button" onClick={() => setTelaAtual('planos')} className="underline font-bold">faça upgrade pra Pro</button>.
+                </p>
+              )}
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
                 {listaPecas.length === 0 ? (
@@ -1895,7 +1986,9 @@ function App() {
           </div>
         )}
 
-        {telaAtual === 'perfil' && <PerfilUsuario />}
+        {telaAtual === 'perfil' && <PerfilUsuario onIrParaPlanos={() => setTelaAtual('planos')} />}
+        {telaAtual === 'historico' && <Historico />}
+        {telaAtual === 'planos' && <Planos />}
       </main>
 
       {/* MODAL DE CONFIGURAÇÃO DE CHAPAS */}

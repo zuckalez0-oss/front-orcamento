@@ -1,4 +1,4 @@
--- GeoQuote — Perfis & RBAC (ADMINISTRADOR / GERENTE / VENDEDOR)
+1-- GeoQuote — Perfis & RBAC (ADMINISTRADOR / GERENTE / VENDEDOR)
 --
 -- Rode isto uma vez no SQL Editor do painel do seu projeto Supabase
 -- (Project > SQL Editor > New query). Não é aplicado automaticamente —

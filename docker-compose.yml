@@ -3,12 +3,14 @@ services:
     build: ./backend-orcamentos
     container_name: geoquote-backend
     restart: unless-stopped
-    volumes:
-      # geoquote.db é criado relativo ao CWD (/app) do processo — ver
-      # SQLALCHEMY_DATABASE_URL em main.py. Bind mount de arquivo único:
-      # o arquivo precisa existir no host ANTES do primeiro `docker compose up`
-      # (senão o Docker cria um diretório no lugar). Ver passo-a-passo de deploy.
-      - ./data/geoquote.db:/app/geoquote.db
+    environment:
+      # Postgres do projeto Supabase (ver backend-orcamentos/.env.example e
+      # supabase/schema_contas.sql — precisa já ter rodado lá antes de subir
+      # este serviço). Sem DATABASE_URL definido, o backend cai num SQLite
+      # local dentro do container (perdido a cada rebuild) — só serve pra
+      # smoke test, não use em produção sem essas variáveis preenchidas.
+      DATABASE_URL: ${DATABASE_URL:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
     expose:
       - "8000"
 
