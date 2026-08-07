@@ -53,6 +53,13 @@ class PerfilTributarioDB(Base):
     nome = Column(String, unique=True)     # Ex: Simples Nacional, Revenda
     imposto_perc = Column(Float)           # Ex: 6.0 (%)
 
+# Tabela 4: Lista simples de clientes já usados em orçamentos (autocomplete do
+# dropdown "Cliente" no formulário — não é um cadastro completo, só nome).
+class ClienteDB(Base):
+    __tablename__ = "clientes"
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, unique=True, index=True)
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -187,6 +194,36 @@ def del_perfil(id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "sucesso"}
 
+# --- Rotas CRUD: CLIENTES ---
+class ClienteCreate(BaseModel):
+    nome: str
+
+@app.get("/clientes")
+def get_clientes(db: Session = Depends(get_db)):
+    return db.query(ClienteDB).order_by(ClienteDB.nome).all()
+
+@app.post("/clientes")
+def add_cliente(item: ClienteCreate, db: Session = Depends(get_db)):
+    upsert_cliente(db, item.nome)
+    return {"status": "sucesso"}
+
+@app.delete("/clientes/{id}")
+def del_cliente(id: int, db: Session = Depends(get_db)):
+    db.query(ClienteDB).filter(ClienteDB.id == id).delete()
+    db.commit()
+    return {"status": "sucesso"}
+
+
+def upsert_cliente(db: Session, nome: str):
+    """Registra um nome de cliente pra aparecer no dropdown de próximos orçamentos.
+    Silencioso por design: nome vazio não gera erro, só não registra nada."""
+    nome = (nome or "").strip()
+    if not nome:
+        return
+    if not db.query(ClienteDB).filter_by(nome=nome).first():
+        db.add(ClienteDB(nome=nome))
+        db.commit()
+
 
 # ==========================================
 # 3. MODELOS PYDANTIC
@@ -260,7 +297,9 @@ class OrcamentoPayload(BaseModel):
 # 4. MOTOR DE ORÇAMENTO
 # ==========================================
 @app.post("/calcular-orcamento")
-def calcular_orcamento(dados: OrcamentoPayload):
+def calcular_orcamento(dados: OrcamentoPayload, db: Session = Depends(get_db)):
+    upsert_cliente(db, dados.cliente)
+
     total_pecas_global = 0
     peso_total_global = 0.0
     tempo_total_global_min = 0.0

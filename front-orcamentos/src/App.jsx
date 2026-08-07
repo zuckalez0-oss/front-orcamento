@@ -147,6 +147,8 @@ function App() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro';
   });
   const [cliente, setCliente] = useState('');
+  const [listaClientes, setListaClientes] = useState([]);
+  const [clienteOutro, setClienteOutro] = useState(false); // true = dropdown em "Outro", campo de texto livre visível
   const [incluiMaterial, setIncluiMaterial] = useState(true); // false = facção (cliente traz a própria chapa)
   const [comissao, setComissao] = useState(2);
   const [margemLucro, setMargemLucro] = useState(25);
@@ -235,6 +237,16 @@ function App() {
     }
   };
 
+  const carregarClientes = async () => {
+    try {
+      const resposta = await fetch(`${API_BASE}/clientes`);
+      const dados = await resposta.json();
+      setListaClientes(Array.isArray(dados) ? dados : []);
+    } catch (erro) {
+      console.error('Falha ao carregar clientes', erro);
+    }
+  };
+
   const carregarPerfisTributarios = async () => {
     try {
       const resposta = await fetch(`${API_BASE}/perfis-tributarios`);
@@ -257,6 +269,7 @@ function App() {
     carregarMateriais();
     carregarMaquinasParams();
     carregarPerfisTributarios();
+    carregarClientes();
   }, []);
 
   // Pré-seleciona máquina/material/espessura assim que os parâmetros carregarem
@@ -759,6 +772,7 @@ function App() {
       if (dadosDoBack.status === "sucesso") {
          setResultadoOrcamento(dadosDoBack);
          setTelaAtual('resultado');
+         carregarClientes();
       } else {
         alert(dadosDoBack.detail || 'Não foi possível calcular o orçamento (verifique as dimensões de chapa/margem).');
         setIsModalChapasOpen(true);
@@ -1191,7 +1205,43 @@ function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 lg:gap-3 items-end">
                   <div className="col-span-2 sm:col-span-4 lg:col-span-3">
                     <label className="block text-[9px] font-bold uppercase tracking-wider surface-muted">Cliente</label>
-                    <input type="text" value={cliente} onChange={(e) => setCliente(e.target.value)} className="input-field mt-0.5 w-full rounded-lg px-2 py-1.5 text-xs" placeholder="Nome da empresa" />
+                    {clienteOutro ? (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <input
+                          type="text"
+                          value={cliente}
+                          onChange={(e) => setCliente(e.target.value)}
+                          className="input-field w-full rounded-lg px-2 py-1.5 text-xs"
+                          placeholder="Nome da empresa"
+                          autoFocus
+                        />
+                        {listaClientes.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => { setClienteOutro(false); setCliente(''); }}
+                            className="text-[9px] font-bold uppercase surface-muted hover:text-orange-500 shrink-0"
+                            title="Voltar para a lista de clientes"
+                          >
+                            Lista
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        value={listaClientes.some((c) => c.nome === cliente) ? cliente : ''}
+                        onChange={(e) => {
+                          if (e.target.value === '__outro__') { setClienteOutro(true); setCliente(''); }
+                          else setCliente(e.target.value);
+                        }}
+                        className="input-field mt-0.5 w-full rounded-lg px-2 py-1.5 text-xs"
+                      >
+                        <option value="">Selecione...</option>
+                        {listaClientes.map((c) => (
+                          <option key={c.id} value={c.nome}>{c.nome}</option>
+                        ))}
+                        <option value="__outro__">Outro...</option>
+                      </select>
+                    )}
                   </div>
                   <div className="lg:col-span-2">
                     <label className="block text-[9px] font-bold uppercase tracking-wider surface-muted">Máquina</label>
